@@ -86,6 +86,19 @@ const supabaseClient = window.supabase.createClient(
         console.log("Estado salvo na nuvem.");
     }
 }
+  async function carregarEstadoNuvem() {
+  const { data, error } = await supabaseClient
+    .from("ccge_state")
+    .select("dados")
+    .eq("id", "00000000-0000-0000-0000-000000000001")
+    .single();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return data.dados;
+}
 </script>
 
 </head>
