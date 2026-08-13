@@ -71,6 +71,21 @@ const supabase = window.supabase.createClient(
   SUPABASE_URL,
   SUPABASE_KEY
 );
+  async function salvarEstadoNuvem(state) {
+    const { error } = await supabase
+        .from('ccge_state')
+        .upsert({
+            id: '00000000-0000-0000-0000-000000000001',
+            dados: state,
+            atualizado_em: new Date().toISOString()
+        });
+
+    if (error) {
+        console.error("Erro Supabase:", error);
+    } else {
+        console.log("Estado salvo na nuvem.");
+    }
+}
 </script>
 
 </head>
@@ -241,6 +256,7 @@ if(!state.phases.some(v=>!v.archived)||!state.activities.some(v=>!v.archived)||!
  state=normalizeState(seed());
 }
 safeStore.set(JSON.stringify(state));
+salvarEstadoNuvem(state);
 function currentMode(){return state.mode||document.getElementById('commandScope')?.value||'Todos'}
 function commandTasks(){const scope=currentMode();return state.tasks.filter(t=>!t.archived&&(scope==='Todos'||t.nature===scope))}
 let editingId=null;
