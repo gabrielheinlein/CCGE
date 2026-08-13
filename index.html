@@ -67,12 +67,12 @@ const SUPABASE_URL = "https://vrjcwqbaamakyskpdnnr.supabase.co";
 
 const SUPABASE_KEY = "sb_publishable_b_x8NGJj2WAmRZOwFhE4-Q_HO5ZFotq";
 
-const supabase = window.supabase.createClient(
+const supabaseClient = window.supabase.createClient(
   SUPABASE_URL,
   SUPABASE_KEY
 );
   async function salvarEstadoNuvem(state) {
-    const { error } = await supabase
+    const { error } = await supabaseClient
         .from('ccge_state')
         .upsert({
             id: '00000000-0000-0000-0000-000000000001',
