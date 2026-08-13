@@ -58,6 +58,16 @@
 }
 
 .analysis-builder-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.analysis-builder-summary{border:1px solid var(--line);background:#f7fbff;border-radius:14px;padding:13px 15px;margin-bottom:14px}.analysis-builder-summary b{display:block;color:var(--navy);margin-bottom:4px}.analysis-builder-summary small{color:var(--muted)}.analysis-builder-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}.axis-caption{font-size:11px;font-weight:900;fill:#53657b}.chart-helper{color:var(--muted);font-size:12px;margin-top:6px}.builder-preview-list{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.builder-preview-list span{background:#eaf4ff;color:var(--navy);border-radius:999px;padding:5px 8px;font-size:11px;font-weight:800}@media(max-width:700px){.analysis-builder-grid{grid-template-columns:1fr}}
+
+#authGate{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;background:linear-gradient(135deg,#0b2d5c,#174d91 55%,#2f80d1)}
+#authGate[hidden]{display:none!important}.auth-card{width:min(430px,100%);background:#fff;border-radius:22px;padding:30px;box-shadow:0 28px 70px rgba(0,0,0,.28)}
+.auth-brand{display:flex;gap:14px;align-items:center;margin-bottom:22px}.auth-logo{width:48px;height:48px;border-radius:14px;background:#d9efff;color:#0b2d5c;display:grid;place-items:center;font-size:24px;font-weight:900}
+.auth-card h1{margin:0;color:#0b2d5c;font-size:24px}.auth-card p{margin:6px 0 0;color:#65748b}.auth-field{display:grid;gap:7px;margin-top:15px}
+.auth-field label{font-size:13px;font-weight:800;color:#23344d}.auth-field input{width:100%;padding:12px 13px;border:1px solid #d7e1ee;border-radius:10px;font:inherit;outline:none}
+.auth-submit{width:100%;margin-top:20px;padding:12px;border:0;border-radius:10px;background:#1457a6;color:#fff;font-weight:900;font-size:15px;cursor:pointer}
+.auth-submit:disabled{opacity:.6}.auth-error{min-height:20px;margin-top:12px;color:#c9362b;font-size:13px;font-weight:700}.auth-foot{font-size:12px!important;color:#7b8798!important}
+#logoutBtn{position:fixed;right:18px;bottom:18px;z-index:9000;padding:9px 15px;border:1px solid #cbd8e8;border-radius:9px;background:#fff;color:#163b68;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.12)}
+
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -107,6 +117,18 @@ async function carregarEstadoNuvem() {
 </head>
 
 <body>
+
+<div id="authGate">
+<form class="auth-card" id="loginForm">
+<div class="auth-brand"><div class="auth-logo">G</div><div><h1>CCGE</h1><p>Centro Corporativo de Gestão do Empreendimento</p></div></div>
+<div class="auth-field"><label>E-mail</label><input id="loginEmail" type="email" autocomplete="username" required></div>
+<div class="auth-field"><label>Senha</label><input id="loginPassword" type="password" autocomplete="current-password" required></div>
+<button class="auth-submit" id="loginSubmit" type="submit">Entrar</button>
+<div class="auth-error" id="loginError"></div>
+<p class="auth-foot">Acesso restrito a usuários autorizados.</p>
+</form></div>
+<button id="logoutBtn" type="button">Sair</button>
+
 
 <div class="app">
 <aside class="sidebar">
@@ -557,8 +579,73 @@ $('#confirmAnalysisBuilder').onclick=()=>{$('#chartMetric').value=$('#builderMet
 $('#closeMetricModal').onclick=$('#closeMetricModal2').onclick=()=>$('#metricModal').classList.remove('open');
 $('#metricModal').onclick=e=>{if(e.target.id==='metricModal')$('#metricModal').classList.remove('open')};
 $('#globalSearch').onkeydown=e=>{if(e.key==='Enter'){nav('tasks');$('#taskSearch').value=e.target.value;renderTasks()}};
-setCommandScope(state.mode||'Todos');
-renderAll();
+// v1.5 — autenticação Supabase + expiração por 20 minutos de inatividade
+let ccgeBootstrapped=false, inactivityTimer=null;
+const INACTIVITY_MS=20*60*1000;
+
+function showAuthGate(show){
+  const gate=document.getElementById('authGate');
+  if(gate)gate.hidden=!show;
+  const app=document.querySelector('.app');
+  if(app)app.style.visibility=show?'hidden':'visible';
+  const logout=document.getElementById('logoutBtn');
+  if(logout)logout.style.display=show?'none':'block';
+}
+function authMessage(msg){const el=document.getElementById('loginError');if(el)el.textContent=msg||''}
+function armInactivity(){
+  clearTimeout(inactivityTimer);
+  inactivityTimer=setTimeout(async()=>{
+    await supabaseClient.auth.signOut();
+    ccgeBootstrapped=false;
+    showAuthGate(true);
+    authMessage('Sessão encerrada após 20 minutos de inatividade.');
+  },INACTIVITY_MS);
+}
+['click','keydown','pointerdown','touchstart','scroll'].forEach(evt=>{
+  window.addEventListener(evt,()=>{if(ccgeBootstrapped)armInactivity()},{passive:true});
+});
+
+async function bootstrapCCGE(){
+  if(ccgeBootstrapped){showAuthGate(false);armInactivity();return}
+  let cloudState=await carregarEstadoNuvem(), localState=null;
+  try{const raw=safeStore.get();if(raw)localState=JSON.parse(raw)}catch(e){}
+  if(cloudState){state=normalizeState(cloudState);safeStore.set(JSON.stringify(state))}
+  else if(localState){state=normalizeState(localState);safeStore.set(JSON.stringify(state));await salvarEstadoNuvem(state)}
+  else{state=normalizeState(seed());safeStore.set(JSON.stringify(state));await salvarEstadoNuvem(state)}
+  ccgeBootstrapped=true;
+  showAuthGate(false);
+  setCommandScope(state.mode||'Todos');
+  renderAll();
+  armInactivity();
+}
+
+document.getElementById('loginForm').addEventListener('submit',async e=>{
+  e.preventDefault();authMessage('');
+  const b=document.getElementById('loginSubmit');
+  b.disabled=true;b.textContent='Entrando...';
+  const email=document.getElementById('loginEmail').value.trim();
+  const password=document.getElementById('loginPassword').value;
+  const {error}=await supabaseClient.auth.signInWithPassword({email,password});
+  b.disabled=false;b.textContent='Entrar';
+  if(error){authMessage('E-mail ou senha inválidos.');return}
+  document.getElementById('loginPassword').value='';
+  await bootstrapCCGE();
+});
+document.getElementById('logoutBtn').addEventListener('click',async()=>{
+  clearTimeout(inactivityTimer);
+  await supabaseClient.auth.signOut();
+  ccgeBootstrapped=false;showAuthGate(true);authMessage('');
+});
+supabaseClient.auth.onAuthStateChange((event)=>{
+  if(event==='SIGNED_OUT'){clearTimeout(inactivityTimer);ccgeBootstrapped=false;showAuthGate(true)}
+});
+
+(async()=>{
+  showAuthGate(true);
+  const {data:{session},error}=await supabaseClient.auth.getSession();
+  if(error){authMessage('Não foi possível verificar a sessão.');return}
+  if(session)await bootstrapCCGE();
+})();
 })();
 </script>
 </body></html>
