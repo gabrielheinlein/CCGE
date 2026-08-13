@@ -59,6 +59,23 @@
 
 .analysis-builder-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.analysis-builder-summary{border:1px solid var(--line);background:#f7fbff;border-radius:14px;padding:13px 15px;margin-bottom:14px}.analysis-builder-summary b{display:block;color:var(--navy);margin-bottom:4px}.analysis-builder-summary small{color:var(--muted)}.analysis-builder-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}.axis-caption{font-size:11px;font-weight:900;fill:#53657b}.chart-helper{color:var(--muted);font-size:12px;margin-top:6px}.builder-preview-list{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.builder-preview-list span{background:#eaf4ff;color:var(--navy);border-radius:999px;padding:5px 8px;font-size:11px;font-weight:800}@media(max-width:700px){.analysis-builder-grid{grid-template-columns:1fr}}
 </style>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+const SUPABASE_URL = "https://vrjcwqbaamakyskpdnnr.supabase.co";
+
+const SUPABASE_KEY = "sb_publishable_b_x8NGJj2WAmRZOwFhE4-Q_HO5ZFotq";
+
+const supabase = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+);
+</script>
+
+</head>
+
+<body>
 </head>
 <body>
 <div class="app">
