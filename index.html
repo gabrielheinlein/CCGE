@@ -248,7 +248,7 @@
 .drop-zone{border:2px dashed var(--line);border-radius:14px;padding:14px;min-height:74px;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;background:var(--soft);transition:.16s ease;cursor:pointer;text-align:center}
 .drop-zone:hover,.drop-zone.dragover{border-color:var(--blue);background:#eef5ff;box-shadow:0 0 0 3px rgba(42,104,180,.08)}
 .drop-zone input[type=file]{max-width:100%}.drop-zone .drop-hint{color:var(--muted);font-size:12px}.drop-zone .drop-hint b{color:var(--navy)}
-</style>
+#syncFeedback.show{opacity:1!important;transform:translateY(0)!important}</style>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -312,7 +312,7 @@ async function carregarEstadoNuvem() {
 
 <div class="app">
 <aside class="sidebar">
- <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.15</small></div></div>
+ <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.16</small></div></div>
  <nav class="nav" id="nav">
   <button class="active" data-page="home">⌂ <span class="label">Centro de Comando</span></button>
   <button data-page="structure" data-context="work">◫ <span class="label">Etapas</span></button>
@@ -539,7 +539,7 @@ async function carregarEstadoNuvem() {
 <div class="modal-head"><h2>Composição do orçamento aprovado</h2><button type="button" class="icon-btn" id="closeApprovedBreakdownX">×</button></div>
 <div class="modal-body"><div id="approvedBreakdownBody"></div></div>
 <div class="toolbar approved-breakdown-footer"><span class="spacer"></span><button type="button" class="secondary" id="closeApprovedBreakdownBtn">Fechar</button></div>
-</div></div><div class="toast" id="toast"></div>
+</div></div><div class="toast" id="toast"></div><div id="syncFeedback" style="position:fixed;right:22px;bottom:22px;z-index:9999;background:#0f5132;color:white;padding:10px 14px;border-radius:999px;font-weight:700;font-size:12px;opacity:0;transform:translateY(8px);pointer-events:none;transition:.18s ease">✓ Salvo e indicadores atualizados</div>
 <script>
 (async()=>{
 const KEY='gestao_empreendimento_draft_v101';
@@ -678,8 +678,34 @@ function normalizeTaskName(t){
  return t;
 }
 
+let reactiveRenderQueued=false,renderInProgress=false;
+function recomputeDerivedState(){
+ (state.tasks||[]).forEach(t=>{
+   t.additiveRecords=Array.isArray(t.additiveRecords)?t.additiveRecords:[];
+   if(t.additiveRecords.length)t.additives=t.additiveRecords.reduce((s,a)=>s+Number(a.value||0),0);
+   t.payments=Array.isArray(t.payments)?t.payments:[];
+   if(t.payments.length)t.paid=t.payments.reduce((s,p)=>s+Number(p.paidAmount||0),0);
+   t.invoices=Array.isArray(t.invoices)?t.invoices:[];
+   if(t.invoices.length)t.invoiced=t.invoices.reduce((s,i)=>s+Number(i.amount||0),0);
+ });
+}
+function scheduleReactiveRender(){
+ if(reactiveRenderQueued)return;
+ reactiveRenderQueued=true;
+ requestAnimationFrame(()=>{
+   reactiveRenderQueued=false;
+   if(typeof renderAll==='function'&&!renderInProgress)renderAll();
+   const el=document.getElementById('syncFeedback');
+   if(el){el.textContent='✓ Salvo e indicadores atualizados';el.classList.add('show');setTimeout(()=>el.classList.remove('show'),1800)}
+ });
+}
 function persistState(){safeStore.set(JSON.stringify(state));salvarEstadoNuvem(state)}
-function save(msg){if(msg){state.history.unshift({date:new Date().toISOString(),text:msg});state.history=state.history.slice(0,40);toast(msg)}persistState()}
+function save(msg){
+ recomputeDerivedState();
+ if(msg){state.history.unshift({date:new Date().toISOString(),text:msg});state.history=state.history.slice(0,40);toast(msg)}
+ persistState();
+ scheduleReactiveRender();
+}
 function toast(t){const x=$('#toast');x.textContent=t;x.classList.add('show');setTimeout(()=>x.classList.remove('show'),1800)}
 function activity(id){return state.activities.find(x=>x.id===id)||{name:'',phaseId:''}}
 function phase(id){return state.phases.find(x=>x.id===id)||{name:'Sem etapa'}}
@@ -1181,7 +1207,14 @@ window.manageCustomField=id=>{const f=state.customFields.find(x=>x.id===id);if(!
 function addColumn(){const n=prompt('Título da nova coluna:');if(!n||!n.trim())return;const raw=prompt('Tipo da coluna:\n1 = Texto\n2 = Número\n3 = Data\n4 = Valor\n5 = Sim/Não','1');const type=({1:'text',2:'number',3:'date',4:'money',5:'boolean'})[raw]||'text';state.customFields.push({id:uid('cf_'),name:n.trim(),type,hidden:false});save('Nova coluna criada');renderAll()}
 
 function fillFilters(){let cur=$('#phaseFilter').value;$('#phaseFilter').innerHTML='<option value="">Todas as etapas</option>'+state.phases.filter(f=>!f.archived).map(f=>`<option value="${f.id}" ${cur===f.id?'selected':''}>${esc(f.name)}</option>`).join('')}
-function renderAll(){refreshChartMetricOptions();updateSelectionUI();renderMetrics();renderAttention();renderHistory();renderHierarchy();fillFilters();renderTasks();renderProjects();renderFinancial();renderMonthly();renderCharts();renderDocuments();renderCustomFields();renderSuppliers();renderAgenda()}
+function renderAll(){
+ if(renderInProgress)return;
+ renderInProgress=true;
+ try{
+   recomputeDerivedState();
+   refreshChartMetricOptions();updateSelectionUI();renderMetrics();renderAttention();renderHistory();renderHierarchy();fillFilters();renderTasks();renderProjects();renderFinancial();renderMonthly();renderCharts();renderDocuments();renderCustomFields();renderSuppliers();renderAgenda();
+ }finally{renderInProgress=false}
+}
 
 
 $('#quickFinancialPayment').onclick=openQuickPayment;
