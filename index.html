@@ -259,6 +259,33 @@ const CCGE_STATE_ID = "00000000-0000-0000-0000-000000000001";
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+const CCGE_STORAGE_BUCKET = "ccge-files";
+function safeFileName(name){return String(name||'arquivo').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9._-]+/g,'_').slice(-140)}
+async function uploadCCGEFile(file,folder='geral'){
+  if(!file)throw new Error('Arquivo ausente.');
+  const {data:{user}}=await supabaseClient.auth.getUser();
+  if(!user)throw new Error('Sessão expirada. Entre novamente.');
+  const path=`${folder}/${new Date().toISOString().slice(0,10)}/${crypto.randomUUID()}_${safeFileName(file.name)}`;
+  const {error}=await supabaseClient.storage.from(CCGE_STORAGE_BUCKET).upload(path,file,{contentType:file.type||'application/octet-stream',upsert:false});
+  if(error)throw new Error(`Falha no Storage: ${error.message}`);
+  return {name:file.name,type:file.type,size:file.size,storagePath:path,storageBucket:CCGE_STORAGE_BUCKET,uploadedAt:new Date().toISOString()};
+}
+async function openCCGEAttachment(f){
+  if(!f)return toast('Arquivo não disponível.');
+  if(f.storagePath){
+    const bucket=f.storageBucket||CCGE_STORAGE_BUCKET;
+    const {data,error}=await supabaseClient.storage.from(bucket).createSignedUrl(f.storagePath,300);
+    if(error||!data?.signedUrl){toast('Não foi possível abrir o arquivo no Supabase Storage.');console.error(error);return}
+    window.open(data.signedUrl,'_blank','noopener');
+    return;
+  }
+  if(typeof f.data==='string'&&f.data.startsWith('data:')){const w=window.open();if(w)w.location.href=f.data;return}
+  toast('Anexo legado sem arquivo no Supabase. Reanexe o documento para migrá-lo.');
+}
+async function deleteCCGEAttachment(f){
+  if(f?.storagePath){const {error}=await supabaseClient.storage.from(f.storageBucket||CCGE_STORAGE_BUCKET).remove([f.storagePath]);if(error)console.error('Falha ao remover Storage',error)}
+}
+
 async function salvarEstadoNuvem(state) {
   try {
     const { error } = await supabaseClient
@@ -312,7 +339,7 @@ async function carregarEstadoNuvem() {
 
 <div class="app">
 <aside class="sidebar">
- <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.18</small></div></div>
+ <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.19</small></div></div>
  <nav class="nav" id="nav">
   <button class="active" data-page="home">⌂ <span class="label">Centro de Comando</span></button>
   <button data-page="structure" data-context="work">◫ <span class="label">Etapas</span></button>
@@ -1049,9 +1076,9 @@ function renderAdditives(t){
 }
 window.editAdditive=(i,k,v)=>{let t=modalTask();if(k==='value')v=parseMoney(v);t.additiveRecords[i][k]=v;t.additives=additiveTotal(t);$('#taskModal').dataset.temp=JSON.stringify(t);renderAdditives(t)};
 window.removeAdditive=i=>{let t=modalTask(),a=t.additiveRecords?.[i];if(!a)return;if(!confirm(`Excluir o aditivo "${a.name||'Aditivo'}"?`))return;t.additiveRecords.splice(i,1);t.additives=additiveTotal(t);$('#taskModal').dataset.temp=JSON.stringify(t);renderAdditives(t)};
-window.attachAdditiveFiles=i=>{let input=$(`#additiveFile_${i}`),files=[...(input?.files||[])];if(!files.length){toast('Selecione ao menos um arquivo.');return}let t=modalTask();t.additiveRecords[i].files=t.additiveRecords[i].files||[];let pending=files.length;files.forEach(f=>{if(f.size>5*1024*1024){toast(`${f.name}: acima de 5 MB.`);if(!--pending){$('#taskModal').dataset.temp=JSON.stringify(t);renderAdditives(t)};return}let r=new FileReader();r.onload=()=>{t.additiveRecords[i].files.push({name:f.name,type:f.type,size:f.size,data:r.result,uploadedAt:new Date().toISOString()});if(!--pending){$('#taskModal').dataset.temp=JSON.stringify(t);renderAdditives(t);toast('Documento anexado')}};r.readAsDataURL(f)})};
-window.openAdditiveFile=(i,j)=>{let f=modalTask().additiveRecords?.[i]?.files?.[j];if(!f?.data){toast('Arquivo não disponível.');return}let w=window.open();if(w)w.location.href=f.data};
-window.removeAdditiveFile=(i,j)=>{let t=modalTask();t.additiveRecords?.[i]?.files?.splice(j,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderAdditives(t)};
+window.attachAdditiveFiles=i=>{let input=$(`#additiveFile_${i}`);uploadFilesToTemp(input?.files||[],`tarefas/${editingId||'nova'}/aditivos`,async uploaded=>{let t=modalTask();t.additiveRecords[i].files=t.additiveRecords[i].files||[];t.additiveRecords[i].files.push(...uploaded);$('#taskModal').dataset.temp=JSON.stringify(t);renderAdditives(t);toast('Documento do aditivo salvo no Supabase')})};
+window.openAdditiveFile=(i,j)=>openCCGEAttachment(modalTask().additiveRecords?.[i]?.files?.[j]);
+window.removeAdditiveFile=async(i,j)=>{let t=modalTask(),f=t.additiveRecords?.[i]?.files?.[j];await deleteCCGEAttachment(f);t.additiveRecords?.[i]?.files?.splice(j,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderAdditives(t)};
 function renderMilestones(t){
  let a=t.milestones||[];
  $('#milestoneList').innerHTML=a.length?a.map((x,i)=>`<div class="mini-row"><input value="${esc(x.name||'')}" placeholder="Marco" onchange="editMilestone(${i},'name',this.value)"><input type="date" value="${esc(x.plannedDate||'')}" onchange="editMilestone(${i},'plannedDate',this.value)"><input type="date" value="${esc(x.actualDate||'')}" onchange="editMilestone(${i},'actualDate',this.value)"><select onchange="editMilestone(${i},'status',this.value)">${['Planejado','Atingido','Atrasado'].map(v=>`<option ${x.status===v?'selected':''}>${v}</option>`).join('')}</select><button type="button" onclick="removeMilestone(${i})">Remover</button></div>`).join(''):'<div class="empty" style="padding:14px">Nenhum marco cadastrado.</div>';
@@ -1070,12 +1097,22 @@ window.editDeliverable=(i,k,v)=>{let t=modalTask();t.deliverables=t.deliverables
 window.removeDeliverable=i=>{let t=modalTask();t.deliverables.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderDeliverables(t)};
 $('#addDeliverable').onclick=()=>{let t=modalTask();t.deliverables=t.deliverables||[];t.deliverables.push({id:uid('del'),name:'',revision:'R00',dueDate:'',status:'Planejado'});$('#taskModal').dataset.temp=JSON.stringify(t);renderDeliverables(t)};
 function formatBytes(n){if(!n)return '0 B';let u=['B','KB','MB','GB'],i=Math.min(Math.floor(Math.log(n)/Math.log(1024)),u.length-1);return (n/Math.pow(1024,i)).toFixed(i?1:0)+' '+u[i]}
-function renderMapFiles(t){let files=t.mapFiles||[];$('#mapFileList').innerHTML=files.length?files.map((f,i)=>`<div class="attachment-item"><span>📎</span><div class="file-meta"><b>${esc(f.name)}</b><small>${formatBytes(f.size)} · ${new Date(f.addedAt).toLocaleString('pt-BR')}</small></div><a href="${f.data}" download="${esc(f.name)}">Abrir</a><button type="button" onclick="removeMapFile(${i})">Remover</button></div>`).join(''):'<div class="empty" style="padding:14px">Nenhum arquivo anexado.</div>'}
-window.removeMapFile=i=>{let t=modalTask();t.mapFiles=t.mapFiles||[];t.mapFiles.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderMapFiles(t)};
-$('#addMapFiles').onclick=()=>{let files=[...$('#mapFileInput').files];if(!files.length)return toast('Selecione ao menos um arquivo');let t=modalTask();t.mapFiles=t.mapFiles||[];let pending=files.length;files.forEach(f=>{let r=new FileReader();r.onload=()=>{t.mapFiles.push({name:f.name,type:f.type,size:f.size,data:r.result,addedAt:new Date().toISOString()});if(!--pending){$('#taskModal').dataset.temp=JSON.stringify(t);renderMapFiles(t);$('#mapFileInput').value='';toast('Mapa/orçamento anexado')}};r.readAsDataURL(f)})};
-function renderDocFiles(t){let files=t.documents||[];$('#docFileList').innerHTML=files.length?files.map((f,i)=>`<div class="attachment-item"><span>📄</span><div class="file-meta"><b>${esc(f.name)}</b><small>${formatBytes(f.size)} · ${new Date(f.addedAt).toLocaleString('pt-BR')}</small></div><a href="${f.data}" download="${esc(f.name)}">Abrir</a><button type="button" onclick="removeDocFile(${i})">Remover</button></div>`).join(''):'<div class="empty" style="padding:14px">Nenhum arquivo anexado.</div>'}
-window.removeDocFile=i=>{let t=modalTask();t.documents=t.documents||[];t.documents.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderDocFiles(t)};
-$('#addDocFiles').onclick=()=>{let files=[...$('#docFileInput').files];if(!files.length)return toast('Selecione ao menos um arquivo');let t=modalTask();t.documents=t.documents||[];let pending=files.length;files.forEach(f=>{let r=new FileReader();r.onload=()=>{t.documents.push({name:f.name,type:f.type,size:f.size,data:r.result,addedAt:new Date().toISOString()});if(!--pending){$('#taskModal').dataset.temp=JSON.stringify(t);renderDocFiles(t);$('#docFileInput').value='';toast('Arquivos anexados')}};r.readAsDataURL(f)})};
+
+async function uploadFilesToTemp(files,folder,onDone){
+  const valid=[...files];if(!valid.length)return toast('Selecione ao menos um arquivo');
+  toast(valid.length===1?'Enviando arquivo ao Supabase...':`Enviando ${valid.length} arquivos ao Supabase...`);
+  try{
+    const uploaded=[];
+    for(const f of valid)uploaded.push(await uploadCCGEFile(f,folder));
+    await onDone(uploaded);
+  }catch(err){console.error(err);toast(err.message||'Falha ao enviar arquivo.')}
+}
+function renderMapFiles(t){let files=t.mapFiles||[];$('#mapFileList').innerHTML=files.length?files.map((f,i)=>`<div class="attachment-item"><span>📎</span><div class="file-meta"><b>${esc(f.name)}</b><small>${formatBytes(f.size)} · ${new Date(f.addedAt).toLocaleString('pt-BR')}</small></div><button type="button" class="secondary" onclick="openCCGEAttachment(modalTask().mapFiles[${i}])">Abrir</button><button type="button" onclick="removeMapFile(${i})">Remover</button></div>`).join(''):'<div class="empty" style="padding:14px">Nenhum arquivo anexado.</div>'}
+window.removeMapFile=async i=>{let t=modalTask();t.mapFiles=t.mapFiles||[];await deleteCCGEAttachment(t.mapFiles[i]);t.mapFiles.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderMapFiles(t)};
+$('#addMapFiles').onclick=()=>uploadFilesToTemp($('#mapFileInput').files,`tarefas/${editingId||'nova'}/mapas`,async uploaded=>{let t=modalTask();t.mapFiles=t.mapFiles||[];t.mapFiles.push(...uploaded);$('#taskModal').dataset.temp=JSON.stringify(t);renderMapFiles(t);$('#mapFileInput').value='';toast('Mapa/orçamento salvo no Supabase')});
+function renderDocFiles(t){let files=t.documents||[];$('#docFileList').innerHTML=files.length?files.map((f,i)=>`<div class="attachment-item"><span>📄</span><div class="file-meta"><b>${esc(f.name)}</b><small>${formatBytes(f.size)} · ${new Date(f.uploadedAt||f.addedAt||Date.now()).toLocaleString('pt-BR')}</small></div><button type="button" class="secondary" onclick="openCCGEAttachment(modalTask().documents[${i}])">Abrir</button><button type="button" onclick="removeDocFile(${i})">Remover</button></div>`).join(''):'<div class="empty" style="padding:14px">Nenhum arquivo anexado.</div>'}
+window.removeDocFile=async i=>{let t=modalTask();t.documents=t.documents||[];let f=t.documents[i];await deleteCCGEAttachment(f);t.documents.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderDocFiles(t)};
+$('#addDocFiles').onclick=()=>uploadFilesToTemp($('#docFileInput').files,`tarefas/${editingId||'nova'}/documentos`,async uploaded=>{let t=modalTask();t.documents=t.documents||[];t.documents.push(...uploaded);$('#taskModal').dataset.temp=JSON.stringify(t);renderDocFiles(t);$('#docFileInput').value='';toast('Arquivo(s) salvo(s) no Supabase')});
 function renderVideos(t){let files=t.videos||[];$('#videoList').innerHTML=files.length?files.map((f,i)=>`<div class="attachment-item"><span>🎥</span><div class="file-meta"><b>${esc(f.name)}</b><small>${esc(f.caption||'Sem descrição')} · ${dateBR(f.date)}</small></div><a href="${f.data}" download="${esc(f.name)}">Abrir</a><button type="button" onclick="removeVideo(${i})">Remover</button></div>`).join(''):'<div class="empty" style="padding:14px">Nenhum vídeo anexado.</div>'}
 window.removeVideo=i=>{let t=modalTask();t.videos=t.videos||[];t.videos.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderVideos(t)};
 $('#addVideos').onclick=()=>{let files=[...$('#videoInput').files];if(!files.length)return toast('Selecione ao menos um vídeo');let t=modalTask(),date=$('#videoDate').value||new Date().toISOString().slice(0,10),caption=$('#videoCaption').value;t.videos=t.videos||[];let pending=files.length;files.forEach(f=>{let r=new FileReader();r.onload=()=>{t.videos.push({name:f.name,type:f.type,size:f.size,data:r.result,addedAt:new Date().toISOString(),date,caption});if(!--pending){$('#taskModal').dataset.temp=JSON.stringify(t);renderVideos(t);$('#videoInput').value='';toast('Vídeos anexados')}};r.readAsDataURL(f)})};
@@ -1117,10 +1154,9 @@ function renderMonthlyAttachment(c){
  box.innerHTML=a&&a.name?`<div class="attachment-chip"><span>📎 <b>${esc(a.name)}</b> <small>${a.size?Math.round(a.size/1024)+' KB':''}</small></span><span><button type="button" onclick="viewMonthlyAttachment()">Abrir</button> <button type="button" class="danger" onclick="removeMonthlyAttachment()">Excluir</button></span></div>`:'<small>Nenhum documento anexado.</small>';
 }
 window.viewMonthlyAttachment=()=>{let c=monthlyFromModal();if(c.attachment?.data){const w=window.open();if(w)w.location.href=c.attachment.data}else toast('Documento não disponível.')};
-window.removeMonthlyAttachment=()=>{let c=monthlyFromModal();c.attachment=null;$('#monthlyModal').dataset.temp=JSON.stringify(c);$('#mcAttachment').value='';renderMonthlyAttachment(c)};
-function readMonthlyAttachment(file){
- return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve({name:file.name,type:file.type,size:file.size,data:r.result,uploadedAt:new Date().toISOString()});r.onerror=reject;r.readAsDataURL(file)})
-}
+window.removeMonthlyAttachment=async()=>{let c=monthlyFromModal();await deleteCCGEAttachment(c.attachment);c.attachment=null;$('#monthlyModal').dataset.temp=JSON.stringify(c);$('#mcAttachment').value='';renderMonthlyAttachment(c)};
+async function readMonthlyAttachment(file){return await uploadCCGEFile(file,`contratos-mensais/${editingMonthlyId||'novo'}`)}
+
 function openMonthly(id){
  editingMonthlyId=id||null;
  const c=id?state.monthlyContracts.find(x=>x.id===id):{id:uid('mc'),name:'',company:'',category:'',type:'Recorrente fixo',monthlyValue:0,dueDay:'',start:'',end:'',phaseId:'',status:'Ativo',notes:'',entries:[],attachment:null};
@@ -1218,8 +1254,8 @@ function metricForChart(metric){return metric}
 function renderIntel(arr){const sum=k=>arr.reduce((s,t)=>s+Number(t[k]||0),0),updated=sumFinancial(arr,'contractUpdated'),paid=sumFinancial(arr,'paid'),late=arr.filter(t=>{const d=daysToDue(t);return d!==null&&d<0&&t.status!=='Concluída'}).length,attention=arr.filter(t=>t.status==='Atenção').length,blocked=arr.filter(t=>t.blocked).length,critical=arr.filter(t=>t.priority==='Crítica').length;const cards=[['Registros analisados',arr.length,'Base da leitura atual'],['Aprovado efetivo',brl(sumApprovedWithAdditives(arr)),'Aprovado efetivo (usa o previsto quando não há aprovação específica)'],['Contrato atualizado',brl(updated),'Contrato inicial + aditivos'],['Saldo contratual',brl(updated-paid),'Ainda não pago']];$('#intelMetrics').innerHTML=cards.map(x=>`<div class="card metric"><small>${x[0]}</small><strong>${x[1]}</strong><span>${x[2]}</span></div>`).join('');let insights=[];if(!arr.length)insights.push(['blue','Selecione registros','Use as caixas no final de cada tarefa ou projeto.']);else{const addRatio=sum('contracted')?sum('additives')/sum('contracted')*100:0,payRatio=updated?paid/updated*100:0,works=arr.filter(t=>t.nature!=='Projeto'),avgReal=works.length?works.reduce((s,t)=>s+Number(t.real||0),0)/works.length:0,avgPlanned=works.length?works.reduce((s,t)=>s+Number(t.planned||0),0)/works.length:0;late&&insights.push(['red',`${late} registro(s) com prazo vencido`,'O gráfico de prazo mostra atraso como valor negativo.']);blocked&&insights.push(['red',`${blocked} registro(s) bloqueado(s)`,'Revise dependências, responsáveis e próxima ação.']);critical&&insights.push(['red',`${critical} prioridade(s) crítica(s)`,'Exigem tratamento executivo.']);attention&&insights.push(['amber',`${attention} registro(s) em atenção`,'Exigem decisão ou plano de recuperação.']);addRatio>10&&insights.push(['amber',`Aditivos equivalem a ${addRatio.toFixed(1)}% dos contratos iniciais`,'Concentração de alterações merece revisão de causa e escopo.']);payRatio>80&&insights.push(['blue',`${payRatio.toFixed(1)}% do contrato atualizado já foi pago`,'Confirme entregas e aceite antes do saldo final.']);if(works.length)insights.push([avgReal+10<avgPlanned?'amber':'blue',`Planejado ${avgPlanned.toFixed(1)}% x realizado ${avgReal.toFixed(1)}%`,`Desvio ${(avgReal-avgPlanned)>=0?'+':''}${(avgReal-avgPlanned).toFixed(1)} p.p.`]);if(!insights.length)insights.push(['green','Sem desvio crítico evidente','Acompanhe prazos, custos e pendências periodicamente.'])}$('#executiveInsights').innerHTML=insights.map(([c,b,sm])=>`<div class="attention-item insight-${c==='red'?'risk':c==='amber'?'warn':c==='green'?'good':''}"><i class="dot ${c==='green'?'blue':c}"></i><div><b>${b}</b><small>${sm}</small></div></div>`).join('');$('#analysisItems').innerHTML=arr.length?arr.map(t=>{let c=context(t);return `<div class="attention-item analysis-item"><div><b>${esc(taskDisplayName(t))}</b><small>${esc(t.nature)} · ${esc(c.f.name)} · ${esc(t.company||'Sem empresa')} · ${esc(t.priority||'Normal')}${t.blocked?' · BLOQUEADA':''}</small></div><button class="secondary" onclick="openTask('${t.id}')">Abrir</button></div>`}).join(''):'<div class="empty">Nenhum registro incluído.</div>'}
 function renderCharts(){refreshChartMetricOptions();let mode=currentMode(),homeTasks=commandTasks().filter(t=>t.status!=='Concluída').slice(0,7);if(mode==='Projeto'){svgChart($('#homeChart'),homeTasks,'cost');$('#homeChartTitle').textContent='Valor previsto x aprovado efetivo';$('#homeChartLegend').innerHTML='<span class="prev">Previsto</span><span class="real">Aprovado efetivo</span>'}else{svgChart($('#homeChart'),homeTasks,'planned-real');$('#homeChartTitle').textContent=mode==='Obra'?'Planejado x realizado — obras':'Visão consolidada — planejado x realizado';$('#homeChartLegend').innerHTML='<span class="prev">Planejado</span><span class="real">Realizado</span>'}let metric=$('#chartMetric').value;if(mode==='Projeto'&&['progress','planned-real'].includes(metric)){metric='cost';$('#chartMetric').value='cost'}$('#chartMetric option[value="progress"]').disabled=mode==='Projeto';$('#chartMetric option[value="planned-real"]').disabled=mode==='Projeto';let raw=analysisBase(),arr=groupAnalysis(raw,$('#chartGroup').value),labels=svgChart($('#mainChart'),arr,metricForChart(metric))||[];$('#chartTitle').textContent=$('#chartMetric').selectedOptions[0]?.text||'Análise';$('#chartLegend').innerHTML=labels.map((x,i)=>`<span class="${i?'real':'prev'}">${x}</span>`).join('');$('#analysisScopeLabel').textContent=`${raw.length} registro(s) · ${mode==='Todos'?'Geral':mode==='Obra'?'Obras':'Projetos'}`;renderIntel(raw)}
 function fieldTypeLabel(t){return ({text:'Texto',number:'Número',date:'Data',money:'Valor',boolean:'Sim/Não'})[t]||'Texto'}
-function collectDocuments(){const out=[];state.tasks.filter(t=>!t.archived).forEach(t=>{const c=context(t),base={origin:taskDisplayName(t),phase:c.f.name,company:t.company||t.owner||'',taskId:t.id};(t.mapFiles||[]).forEach(f=>out.push({...base,name:f.name||t.map||'Mapa / orçamento',type:'Mapa / orçamento',date:f.addedAt||t.mapApprovalDate||'',data:f.data}));(t.documents||[]).forEach(f=>out.push({...base,name:f.name||'Documento',type:'Documento',date:f.addedAt||'',data:f.data}));(t.additiveRecords||[]).forEach(a=>(a.files||[]).forEach(f=>out.push({...base,name:f.name||a.map||a.name||'Documento do aditivo',type:'Aditivo',date:f.uploadedAt||a.approvalDate||'',data:f.data}))) });(state.monthlyContracts||[]).forEach(c=>{if(c.attachment)out.push({name:c.attachment.name||c.name||'Contrato mensal',type:'Contrato mensal',origin:c.name||'Contrato mensal',phase:phase(c.phaseId).name,company:c.company||'',date:c.attachment.uploadedAt||c.start||'',data:c.attachment.data})});return out}
-window.openAggregatedDocument=i=>{const d=collectDocuments()[i];if(!d?.data)return toast('Documento não disponível.');const w=window.open();if(w)w.location.href=d.data};
+function collectDocuments(){const out=[];state.tasks.filter(t=>!t.archived).forEach(t=>{const c=context(t),base={origin:taskDisplayName(t),phase:c.f.name,company:t.company||t.owner||'',taskId:t.id};(t.mapFiles||[]).forEach(f=>out.push({...base,name:f.name||t.map||'Mapa / orçamento',type:'Mapa / orçamento',date:f.addedAt||t.mapApprovalDate||'',data:f.data,storagePath:f.storagePath,storageBucket:f.storageBucket}));(t.documents||[]).forEach(f=>out.push({...base,name:f.name||'Documento',type:'Documento',date:f.addedAt||'',data:f.data,storagePath:f.storagePath,storageBucket:f.storageBucket}));(t.additiveRecords||[]).forEach(a=>(a.files||[]).forEach(f=>out.push({...base,name:f.name||a.map||a.name||'Documento do aditivo',type:'Aditivo',date:f.uploadedAt||a.approvalDate||'',data:f.data,storagePath:f.storagePath,storageBucket:f.storageBucket}))) });(state.monthlyContracts||[]).forEach(c=>{if(c.attachment)out.push({name:c.attachment.name||c.name||'Contrato mensal',type:'Contrato mensal',origin:c.name||'Contrato mensal',phase:phase(c.phaseId).name,company:c.company||'',date:c.attachment.uploadedAt||c.start||'',data:c.attachment.data,storagePath:c.attachment.storagePath,storageBucket:c.attachment.storageBucket})});return out}
+window.openAggregatedDocument=i=>{const d=collectDocuments()[i];openCCGEAttachment(d)};
 function renderDocuments(){const body=$('#documentBody');if(!body)return;const q=($('#documentSearch')?.value||'').toLowerCase(),type=$('#documentTypeFilter')?.value||'';let all=collectDocuments(),docs=all.map((d,i)=>({...d,_i:i})).filter(d=>(!q||[d.name,d.type,d.origin,d.phase,d.company].join(' ').toLowerCase().includes(q))&&(!type||d.type===type));docs.sort((a,b)=>(b.date||'').localeCompare(a.date||''));$('#documentCount').textContent=`${docs.length} documento(s)`;body.innerHTML=docs.map(d=>`<tr><td><b>${esc(d.name)}</b></td><td>${esc(d.type)}</td><td>${esc(d.origin)}</td><td>${esc(d.phase||'—')}</td><td>${esc(d.company||'—')}</td><td>${d.date?dateBR(String(d.date).slice(0,10)):'—'}</td><td><button class="secondary" onclick="openAggregatedDocument(${d._i})">Abrir</button></td></tr>`).join('')||'<tr><td colspan="7"><div class="empty">Nenhum documento encontrado.</div></td></tr>'}
 function renderCustomFields(){$('#customFields').innerHTML=state.customFields.length?state.customFields.map(f=>`<span class="custom-field-chip">${esc(f.name)} · ${fieldTypeLabel(f.type)}${f.hidden?' · oculta':''} <button onclick="manageCustomField('${f.id}')">Gerenciar</button></span>`).join(''):'<div class="empty">Nenhuma coluna personalizada.</div>'}
 window.manageCustomField=id=>{const f=state.customFields.find(x=>x.id===id);if(!f)return;const op=prompt(`Coluna: ${f.name}\nTipo: ${fieldTypeLabel(f.type)}\n\n1 = Renomear\n2 = ${f.hidden?'Exibir':'Ocultar'}\n3 = Excluir`,'1');if(op==='1'){const n=prompt('Novo título da coluna:',f.name);if(n&&n.trim()){f.name=n.trim();save('Coluna personalizada renomeada');renderAll()}}else if(op==='2'){f.hidden=!f.hidden;save(f.hidden?'Coluna ocultada':'Coluna exibida');renderAll()}else if(op==='3'&&confirm(`Excluir a coluna "${f.name}"? Os dados preenchidos nela também serão excluídos definitivamente.`)){state.customFields=state.customFields.filter(x=>x.id!==id);state.tasks.forEach(t=>{if(t.custom)delete t.custom[id]});save('Coluna personalizada excluída');renderAll()}};
@@ -1273,6 +1309,18 @@ $('#confirmAnalysisBuilder').onclick=()=>{$('#chartMetric').value=$('#builderMet
 $('#closeMetricModal').onclick=$('#closeMetricModal2').onclick=()=>$('#metricModal').classList.remove('open');
 $('#metricModal').onclick=e=>{if(e.target.id==='metricModal')$('#metricModal').classList.remove('open')};
 $('#globalSearch').onkeydown=e=>{if(e.key==='Enter')openGlobalSearch(e.target.value)};$('#closeGlobalSearch').onclick=()=>$('#globalSearchModal').classList.remove('open');$('#globalSearchModal').onclick=e=>{if(e.target.id==='globalSearchModal')$('#globalSearchModal').classList.remove('open')};
+
+
+function initMoneySelectUX(root=document){
+ root.querySelectorAll('input.money-input,input[data-money="true"],#mcMonthlyValue,#mcRealizedAccumulated,#mcProjectedTotal,#qpAmount,#qpPaidAmount').forEach(input=>{
+   if(input.disabled||input.readOnly||input.dataset.moneySelectReady==='1')return;
+   input.dataset.moneySelectReady='1';
+   input.addEventListener('focus',()=>{setTimeout(()=>input.select(),0)});
+   input.addEventListener('mousedown',e=>{if(document.activeElement!==input){e.preventDefault();input.focus();setTimeout(()=>input.select(),0)}});
+ });
+}
+document.addEventListener('DOMContentLoaded',()=>initMoneySelectUX());
+const moneyUXObserver=new MutationObserver(()=>initMoneySelectUX());moneyUXObserver.observe(document.documentElement,{childList:true,subtree:true});
 
 function initDropZones(root=document){
  root.querySelectorAll('.drop-zone').forEach(zone=>{
