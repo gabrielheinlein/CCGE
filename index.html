@@ -244,6 +244,10 @@
 @media(max-width:1050px){#monthlyMetrics{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:680px){#monthlyMetrics{grid-template-columns:1fr}#page-monthly .page-head{align-items:stretch;flex-direction:column}}
 /* v1.12 — inteligência gerencial ampliada */
 .health-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0}.health-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)}.health-card small{display:block;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.04em}.health-card b{display:block;font-size:18px;color:var(--navy);margin:6px 0}.health-card span{font-size:12px;color:var(--muted)}.health-card.health-risk{border-left:5px solid var(--red)}.health-card.health-warn{border-left:5px solid var(--amber)}.health-card.health-good{border-left:5px solid var(--green)}.health-card.health-info{border-left:5px solid #155da8}.metric .metric-sub{display:block;margin-top:4px;font-size:11px;color:var(--muted)}@media(max-width:900px){.health-grid{grid-template-columns:1fr 1fr}}@media(max-width:560px){.health-grid{grid-template-columns:1fr}}
+
+.drop-zone{border:2px dashed var(--line);border-radius:14px;padding:14px;min-height:74px;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;background:var(--soft);transition:.16s ease;cursor:pointer;text-align:center}
+.drop-zone:hover,.drop-zone.dragover{border-color:var(--blue);background:#eef5ff;box-shadow:0 0 0 3px rgba(42,104,180,.08)}
+.drop-zone input[type=file]{max-width:100%}.drop-zone .drop-hint{color:var(--muted);font-size:12px}.drop-zone .drop-hint b{color:var(--navy)}
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -308,7 +312,7 @@ async function carregarEstadoNuvem() {
 
 <div class="app">
 <aside class="sidebar">
- <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.14</small></div></div>
+ <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.15</small></div></div>
  <nav class="nav" id="nav">
   <button class="active" data-page="home">⌂ <span class="label">Centro de Comando</span></button>
   <button data-page="structure" data-context="work">◫ <span class="label">Etapas</span></button>
@@ -440,8 +444,8 @@ async function carregarEstadoNuvem() {
     <div class="field full form-section compact"><h4>4. Documento do contrato</h4><p>Anexe o contrato, proposta assinada, aditivo ou outro documento relacionado.</p></div>
 <div class="field full">
  <label>Contrato / Documento</label>
- <div class="contract-upload-box">
-   <input id="mcAttachment" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png">
+ <div class="contract-upload-box drop-zone" data-drop-input="mcAttachment">
+   <input id="mcAttachment" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"><span class="drop-hint"><b>Arraste o contrato para cá</b><br>ou clique para selecionar</span>
    <small>PDF, Word, Excel ou imagem. O arquivo fica vinculado a este contrato mensal.</small>
    <div id="mcAttachmentCurrent"></div>
  </div>
@@ -528,7 +532,7 @@ async function carregarEstadoNuvem() {
 </div><div class="tab-content project-only" id="tab-projectFinance">
  <div class="subsection-head"><h4>Notas fiscais e boletos</h4><button class="secondary" type="button" id="addInvoice">+ Adicionar lançamento</button></div><div id="invoiceList" class="mini-list"></div>
  <div class="subsection-head"><h4>Entregáveis, revisões e aprovações</h4><button class="secondary" type="button" id="addDeliverable">+ Adicionar entregável</button></div><div id="deliverableList" class="mini-list"></div>
- </div><div class="tab-content" id="tab-documents"><div class="field full"><label>Anexar mapa de equalização / orçamento</label><div class="toolbar" style="margin:0"><input type="file" id="mapFileInput" accept=".pdf,.xlsx,.xls,.doc,.docx,image/*" multiple><button class="primary" id="addMapFiles" type="button">Anexar mapa/orçamento</button></div><div id="mapFileList" class="attachment-list"></div></div><div class="field full" style="margin-top:16px"><label>Demais arquivos do registro</label><div class="toolbar" style="margin:0"><input type="file" id="docFileInput" multiple><button class="primary" id="addDocFiles" type="button">Anexar arquivos</button></div><div id="docFileList" class="attachment-list"></div></div></div><div class="tab-content" id="tab-images"><div class="toolbar"><input type="file" id="photoInput" accept="image/*" multiple><input type="date" id="photoDate"><input id="photoCaption" placeholder="Legenda da atualização"><button class="primary" id="addPhotos">Adicionar imagens</button></div><div class="gallery" id="photoGallery"></div></div><div class="tab-content" id="tab-videos"><div class="toolbar"><input type="file" id="videoInput" accept="video/*" multiple><input type="date" id="videoDate"><input id="videoCaption" placeholder="Descrição do vídeo"><button class="primary" id="addVideos">Adicionar vídeos</button></div><div id="videoList" class="attachment-list"></div></div><div class="tab-content" id="tab-history"><div class="attention" id="taskHistory"></div></div><div class="toolbar" style="margin-top:18px"><span class="spacer"></span><button class="secondary" data-close>Cancelar</button><button class="primary" id="saveTaskModal">Salvar alterações</button></div></div></div></div>
+ </div><div class="tab-content" id="tab-documents"><div class="field full"><label>Anexar mapa de equalização / orçamento</label><div class="drop-zone" data-drop-input="mapFileInput" data-drop-action="addMapFiles"><input type="file" id="mapFileInput" accept=".pdf,.xlsx,.xls,.doc,.docx,image/*" multiple><span class="drop-hint"><b>Arraste mapa/orçamento para cá</b><br>ou clique para selecionar</span><button class="primary" id="addMapFiles" type="button">Anexar mapa/orçamento</button></div><div id="mapFileList" class="attachment-list"></div></div><div class="field full" style="margin-top:16px"><label>Demais arquivos do registro</label><div class="drop-zone" data-drop-input="docFileInput" data-drop-action="addDocFiles"><input type="file" id="docFileInput" multiple><span class="drop-hint"><b>Arraste os arquivos para cá</b><br>ou clique para selecionar</span><button class="primary" id="addDocFiles" type="button">Anexar arquivos</button></div><div id="docFileList" class="attachment-list"></div></div></div><div class="tab-content" id="tab-images"><div class="toolbar"><div class="drop-zone" data-drop-input="photoInput" data-drop-action="addPhotos"><input type="file" id="photoInput" accept="image/*" multiple><span class="drop-hint"><b>Arraste imagens para cá</b><br>ou clique para selecionar</span></div><input type="date" id="photoDate"><input id="photoCaption" placeholder="Legenda da atualização"><button class="primary" id="addPhotos">Adicionar imagens</button></div><div class="gallery" id="photoGallery"></div></div><div class="tab-content" id="tab-videos"><div class="toolbar"><div class="drop-zone" data-drop-input="videoInput" data-drop-action="addVideos"><input type="file" id="videoInput" accept="video/*" multiple><span class="drop-hint"><b>Arraste vídeos para cá</b><br>ou clique para selecionar</span></div><input type="date" id="videoDate"><input id="videoCaption" placeholder="Descrição do vídeo"><button class="primary" id="addVideos">Adicionar vídeos</button></div><div id="videoList" class="attachment-list"></div></div><div class="tab-content" id="tab-history"><div class="attention" id="taskHistory"></div></div><div class="toolbar" style="margin-top:18px"><span class="spacer"></span><button class="secondary" data-close>Cancelar</button><button class="primary" id="saveTaskModal">Salvar alterações</button></div></div></div></div>
 <div class="modal" id="metricModal"><div class="dialog"><div class="dialog-head"><h3 id="metricModalTitle">Composição do indicador</h3><button class="icon-btn" id="closeMetricModal">✕</button></div><div class="dialog-body"><p id="metricModalDescription" style="color:var(--muted);margin-top:0"></p><div class="table-card"><div class="table-wrap"><table style="min-width:900px"><thead><tr><th>Natureza</th><th>Etapa</th><th>Tarefa</th><th>Valor</th></tr></thead><tbody id="metricDetailBody"></tbody></table></div></div><div class="toolbar"><span class="spacer"></span><button class="secondary" id="closeMetricModal2">Fechar</button></div></div></div></div>
 <div class="modal approved-breakdown-overlay" id="approvedBreakdownModal">
 <div class="modal-card approved-breakdown-card">
@@ -992,7 +996,7 @@ function renderAdditives(t){
  <div class="field"><label>Data de aprovação</label><input type="date" value="${esc(a.approvalDate||'')}" onchange="editAdditiveDate(${i},this.value)"></div>
  <div class="field"><label>Valor do aditivo</label><input type="text" inputmode="decimal" value="${a.value?esc(brl(a.value)):''}" onchange="editAdditive(${i},'value',this.value)"></div>
  <div class="field full"><label>Observação</label><textarea onchange="editAdditive(${i},'notes',this.value)">${esc(a.notes||'')}</textarea></div>
- <div class="field full"><label>Documento do aditivo</label><div class="toolbar" style="margin:0"><input type="file" id="additiveFile_${i}" accept=".pdf,.xlsx,.xls,.doc,.docx,image/*" multiple><button type="button" class="secondary" onclick="attachAdditiveFiles(${i})">Anexar</button></div><div class="attachment-list">${(a.files||[]).map((f,j)=>`<div class="attachment-item"><span>📎 ${esc(f.name||'Arquivo')}</span><span><button type="button" onclick="openAdditiveFile(${i},${j})">Abrir</button><button type="button" class="danger" onclick="removeAdditiveFile(${i},${j})">Excluir</button></span></div>`).join('')}</div></div></div>
+ <div class="field full"><label>Documento do aditivo</label><div class="drop-zone" data-drop-input="additiveFile_${i}" data-additive-index="${i}"><input type="file" id="additiveFile_${i}" accept=".pdf,.xlsx,.xls,.doc,.docx,image/*" multiple><span class="drop-hint"><b>Arraste documentos do aditivo para cá</b><br>ou clique para selecionar</span><button type="button" class="secondary" onclick="attachAdditiveFiles(${i})">Anexar</button></div><div class="attachment-list">${(a.files||[]).map((f,j)=>`<div class="attachment-item"><span>📎 ${esc(f.name||'Arquivo')}</span><span><button type="button" onclick="openAdditiveFile(${i},${j})">Abrir</button><button type="button" class="danger" onclick="removeAdditiveFile(${i},${j})">Excluir</button></span></div>`).join('')}</div></div></div>
  <div class="toolbar"><span class="spacer"></span><button type="button" class="danger" onclick="removeAdditive(${i})">Excluir aditivo</button></div></div>`).join(''):'<div class="empty" style="padding:18px">Nenhum aditivo cadastrado.</div>';
 }
 window.editAdditive=(i,k,v)=>{let t=modalTask();if(k==='value')v=parseMoney(v);t.additiveRecords[i][k]=v;t.additives=additiveTotal(t);$('#taskModal').dataset.temp=JSON.stringify(t);renderAdditives(t)};
@@ -1217,6 +1221,27 @@ $('#confirmAnalysisBuilder').onclick=()=>{$('#chartMetric').value=$('#builderMet
 $('#closeMetricModal').onclick=$('#closeMetricModal2').onclick=()=>$('#metricModal').classList.remove('open');
 $('#metricModal').onclick=e=>{if(e.target.id==='metricModal')$('#metricModal').classList.remove('open')};
 $('#globalSearch').onkeydown=e=>{if(e.key==='Enter')openGlobalSearch(e.target.value)};$('#closeGlobalSearch').onclick=()=>$('#globalSearchModal').classList.remove('open');$('#globalSearchModal').onclick=e=>{if(e.target.id==='globalSearchModal')$('#globalSearchModal').classList.remove('open')};
+
+function initDropZones(root=document){
+ root.querySelectorAll('.drop-zone').forEach(zone=>{
+   if(zone.dataset.dropReady==='1')return;zone.dataset.dropReady='1';
+   const input=zone.querySelector('input[type=file]')||document.getElementById(zone.dataset.dropInput);
+   if(!input)return;
+   ['dragenter','dragover'].forEach(ev=>zone.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();zone.classList.add('dragover')}));
+   ['dragleave','drop'].forEach(ev=>zone.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();zone.classList.remove('dragover')}));
+   zone.addEventListener('drop',e=>{
+     const files=[...(e.dataTransfer?.files||[])];if(!files.length)return;
+     try{const dt=new DataTransfer();files.forEach(f=>dt.items.add(f));input.files=dt.files}catch(err){toast('Seu navegador não permitiu preparar os arquivos arrastados. Use o seletor de arquivos.');return}
+     input.dispatchEvent(new Event('change',{bubbles:true}));
+     const action=zone.dataset.dropAction;if(action&&document.getElementById(action))document.getElementById(action).click();
+     else if(zone.dataset.additiveIndex!==undefined&&typeof window.attachAdditiveFiles==='function')window.attachAdditiveFiles(Number(zone.dataset.additiveIndex));
+     else toast(files.length===1?`Arquivo selecionado: ${files[0].name}`:`${files.length} arquivos selecionados`);
+   });
+   zone.addEventListener('click',e=>{if(e.target===zone||e.target.classList.contains('drop-hint'))input.click()});
+ });
+}
+document.addEventListener('DOMContentLoaded',()=>initDropZones());
+const dropObserver=new MutationObserver(()=>initDropZones());dropObserver.observe(document.documentElement,{childList:true,subtree:true});
 // v1.5 — autenticação Supabase + expiração por 20 minutos de inatividade
 let ccgeBootstrapped=false, inactivityTimer=null;
 const INACTIVITY_MS=20*60*1000;
