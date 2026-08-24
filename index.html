@@ -265,6 +265,12 @@
 #logoutBtn{position:static!important;inset:auto!important;margin:14px 16px 18px!important;width:calc(100% - 32px)!important;z-index:auto!important}
 .sidebar{display:flex!important;flex-direction:column!important}
 .sidebar #logoutBtn{margin-top:auto!important}
+
+.top-actions{display:flex;align-items:center;gap:8px;flex-wrap:nowrap}
+.top-actions .top-compact{padding:10px 13px!important;min-height:40px!important;white-space:nowrap}
+#logoutBtn.logout-top{position:static!important;inset:auto!important;margin:0!important;width:auto!important;z-index:auto!important;background:#fff!important;color:var(--navy)!important;border:1px solid var(--line)!important}
+.file-meta .file-link.ccge-storage-link{display:inline!important;width:auto!important;max-width:100%;border:0!important;text-decoration:none!important}
+.file-meta .file-link.ccge-storage-link:hover{text-decoration:underline!important;text-decoration-thickness:1px!important;text-underline-offset:2px!important}
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -369,12 +375,9 @@ async function carregarEstadoNuvem() {
 <div class="auth-error" id="loginError"></div>
 <p class="auth-foot">Acesso restrito a usuários autorizados.</p>
 </form></div>
-<button id="logoutBtn" type="button">Sair</button>
-
-
 <div class="app">
 <aside class="sidebar">
- <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.22</small></div></div>
+ <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.24</small></div></div>
  <nav class="nav" id="nav">
   <button class="active" data-page="home">⌂ <span class="label">Centro de Comando</span></button>
   <button data-page="structure" data-context="work">◫ <span class="label">Etapas</span></button>
@@ -394,7 +397,7 @@ async function carregarEstadoNuvem() {
  <header class="topbar">
   <div class="project-select" aria-label="Empreendimento atual">Complexo Aeronáutico</div>
   <div class="search"><span>⌕</span><input id="globalSearch" placeholder="Pesquisar tarefas, etapas, projetos ou empresas..." /></div>
-  <div class="top-actions"><button class="icon-btn" id="exportBtn">Exportar</button><button class="primary" id="newTaskTop">+ Nova tarefa</button></div>
+  <div class="top-actions"><button class="icon-btn top-compact" id="exportBtn">Exportar</button><button class="primary top-compact" id="newTaskTop">+ Nova tarefa</button><button class="icon-btn top-compact logout-top" id="logoutBtn" type="button">Sair</button></div>
  </header>
  <div class="content">
   <section class="page active" id="page-home">
@@ -560,7 +563,7 @@ async function carregarEstadoNuvem() {
  <div id="supplierContactHistory" class="mini-list"></div>
 </div><div class="dialog-foot"><button class="secondary" id="cancelSupplier">Cancelar</button><button class="primary" id="saveSupplier">Salvar fornecedor</button></div></div></div>
 
-<div class="modal" id="taskModal"><div class="dialog"><div class="dialog-head"><h3 id="taskModalTitle">Tarefa</h3><button class="icon-btn" data-close>✕</button></div><div class="dialog-body"><div class="form-grid" id="taskForm"></div><div class="tabs"><button class="active" data-tab="general">Geral</button><button data-tab="management">Gestão</button><button data-tab="payments">Pagamentos</button><button data-tab="additives">Aditivos</button><button data-tab="milestones">Marcos</button><button class="project-only" data-tab="projectFinance">NF, boletos e entregáveis</button><button data-tab="documents">Arquivos e documentos</button><button data-tab="images">Imagens da evolução</button><button data-tab="videos">Vídeos</button><button data-tab="history">Histórico</button></div><div class="tab-content active" id="tab-general"><div class="field full"><label>Observações</label><textarea id="taskNotes"></textarea></div><div class="form-grid">
+<div class="modal" id="taskModal"><div class="dialog"><div class="dialog-head"><h3 id="taskModalTitle">Tarefa</h3><button class="icon-btn" data-close>✕</button></div><div class="dialog-body"><div class="form-grid" id="taskForm"></div><div class="tabs"><button class="active" data-tab="general">Geral</button><button data-tab="management">Gestão</button><button data-tab="payments">Pagamentos</button><button data-tab="additives">Aditivos</button><button class="project-only" data-tab="projectFinance">NF, boletos e entregáveis</button><button data-tab="documents">Arquivos e documentos</button><button data-tab="images">Imagens da evolução</button><button data-tab="videos">Vídeos</button><button data-tab="history">Histórico</button></div><div class="tab-content active" id="tab-general"><div class="field full"><label>Observações</label><textarea id="taskNotes"></textarea></div><div class="form-grid">
 <div class="field"><label>Mapa de equalização / orçamento</label><input id="taskMap" placeholder="Nome, número ou referência do documento"></div>
 <div class="field"><label>Data aprovação Mapa de Equalização</label><input id="taskMapApprovalDate" type="date"><small style="color:var(--muted)">Data da aprovação formal do mapa.</small></div>
 </div></div>
@@ -588,13 +591,13 @@ async function carregarEstadoNuvem() {
 <div class="tab-content" id="tab-additives">
 <div class="additive-summary"><div><small>Contrato inicial</small><b id="additiveBaseValue">R$ 0,00</b></div><div><small>Aditivos acumulados</small><b id="additiveTotalValue">R$ 0,00</b></div><div><small>Contratado atualizado</small><b id="additiveUpdatedValue">R$ 0,00</b></div></div>
 <div class="subsection-head"><div><h4>Aditivos da contratação</h4><small>Cadastre cada aditivo separadamente. O total é somado automaticamente.</small></div><button class="secondary" type="button" id="addAdditive">+ Adicionar Aditivo</button></div>
-<div id="additiveList"></div></div><div class="tab-content" id="tab-milestones">
+<div id="additiveList"></div></div><div class="tab-content" id="tab-milestones" style="display:none!important">
   <div class="subsection-head"><h4>Marcos</h4><button class="secondary" type="button" id="addMilestone">+ Adicionar marco</button></div>
   <div id="milestoneList" class="mini-list"></div>
 </div><div class="tab-content project-only" id="tab-projectFinance">
  <div class="subsection-head"><h4>Notas fiscais e boletos</h4><button class="secondary" type="button" id="addInvoice">+ Adicionar lançamento</button></div><div id="invoiceList" class="mini-list"></div>
  <div class="subsection-head"><h4>Entregáveis, revisões e aprovações</h4><button class="secondary" type="button" id="addDeliverable">+ Adicionar entregável</button></div><div id="deliverableList" class="mini-list"></div>
- </div><div class="tab-content" id="tab-documents"><div class="field full"><label>Anexar mapa de equalização / orçamento</label><div class="drop-zone" data-drop-input="mapFileInput" data-drop-action="addMapFiles"><input type="file" id="mapFileInput" accept=".pdf,.xlsx,.xls,.doc,.docx,image/*" multiple><span class="drop-hint"><b>Arraste mapa/orçamento para cá</b><br>ou clique para selecionar</span><button class="primary" id="addMapFiles" style="display:none" type="button">Anexar mapa/orçamento</button></div><div id="mapFileList" class="attachment-list"></div></div><div class="field full" style="margin-top:16px"><label>Demais arquivos do registro</label><div class="drop-zone" data-drop-input="docFileInput" data-drop-action="addDocFiles"><input type="file" id="docFileInput" multiple><span class="drop-hint"><b>Arraste os arquivos para cá</b><br>ou clique para selecionar</span><button class="primary" id="addDocFiles" style="display:none" type="button">Anexar arquivos</button></div><div id="docFileList" class="attachment-list"></div></div></div><div class="tab-content" id="tab-images"><div class="toolbar"><div class="drop-zone" data-drop-input="photoInput" data-drop-action="addPhotos"><input type="file" id="photoInput" accept="image/*" multiple><span class="drop-hint"><b>Arraste imagens para cá</b><br>ou clique para selecionar</span></div><input type="date" id="photoDate"><input id="photoCaption" placeholder="Legenda da atualização"><button class="primary" id="addPhotos">Adicionar imagens</button></div><div class="gallery" id="photoGallery"></div></div><div class="tab-content" id="tab-videos"><div class="toolbar"><div class="drop-zone" data-drop-input="videoInput" data-drop-action="addVideos"><input type="file" id="videoInput" accept="video/*" multiple><span class="drop-hint"><b>Arraste vídeos para cá</b><br>ou clique para selecionar</span></div><input type="date" id="videoDate"><input id="videoCaption" placeholder="Descrição do vídeo"><button class="primary" id="addVideos">Adicionar vídeos</button></div><div id="videoList" class="attachment-list"></div></div><div class="tab-content" id="tab-history"><div class="attention" id="taskHistory"></div></div><div class="toolbar" style="margin-top:18px"><span class="spacer"></span><button class="secondary" data-close>Cancelar</button><button class="primary" id="saveTaskModal">Salvar alterações</button></div></div></div></div>
+ </div><div class="tab-content" id="tab-documents"><div class="field full"><label>Anexar mapa de equalização / orçamento</label><div class="drop-zone" data-drop-input="mapFileInput"><input type="file" id="mapFileInput" accept=".pdf,.xlsx,.xls,.doc,.docx,image/*" multiple><span class="drop-hint"><b>Arraste mapa/orçamento para cá</b><br>ou clique para selecionar</span><button class="primary" id="addMapFiles" style="display:none" type="button">Anexar mapa/orçamento</button></div><div id="mapFileList" class="attachment-list"></div></div><div class="field full" style="margin-top:16px"><label>Demais arquivos do registro</label><div class="drop-zone" data-drop-input="docFileInput"><input type="file" id="docFileInput" multiple><span class="drop-hint"><b>Arraste os arquivos para cá</b><br>ou clique para selecionar</span><button class="primary" id="addDocFiles" style="display:none" type="button">Anexar arquivos</button></div><div id="docFileList" class="attachment-list"></div></div></div><div class="tab-content" id="tab-images"><div class="toolbar"><div class="drop-zone" data-drop-input="photoInput" data-drop-action="addPhotos"><input type="file" id="photoInput" accept="image/*" multiple><span class="drop-hint"><b>Arraste imagens para cá</b><br>ou clique para selecionar</span></div><input type="date" id="photoDate"><input id="photoCaption" placeholder="Legenda da atualização"><button class="primary" id="addPhotos">Adicionar imagens</button></div><div class="gallery" id="photoGallery"></div></div><div class="tab-content" id="tab-videos"><div class="toolbar"><div class="drop-zone" data-drop-input="videoInput" data-drop-action="addVideos"><input type="file" id="videoInput" accept="video/*" multiple><span class="drop-hint"><b>Arraste vídeos para cá</b><br>ou clique para selecionar</span></div><input type="date" id="videoDate"><input id="videoCaption" placeholder="Descrição do vídeo"><button class="primary" id="addVideos">Adicionar vídeos</button></div><div id="videoList" class="attachment-list"></div></div><div class="tab-content" id="tab-history"><div class="attention" id="taskHistory"></div></div><div class="toolbar" style="margin-top:18px"><span class="spacer"></span><button class="secondary" data-close>Cancelar</button><button class="primary" id="saveTaskModal">Salvar alterações</button></div></div></div></div>
 <div class="modal" id="metricModal"><div class="dialog"><div class="dialog-head"><h3 id="metricModalTitle">Composição do indicador</h3><button class="icon-btn" id="closeMetricModal">✕</button></div><div class="dialog-body"><p id="metricModalDescription" style="color:var(--muted);margin-top:0"></p><div class="table-card"><div class="table-wrap"><table style="min-width:900px"><thead><tr><th>Natureza</th><th>Etapa</th><th>Tarefa</th><th>Valor</th></tr></thead><tbody id="metricDetailBody"></tbody></table></div></div><div class="toolbar"><span class="spacer"></span><button class="secondary" id="closeMetricModal2">Fechar</button></div></div></div></div>
 <div class="modal approved-breakdown-overlay" id="approvedBreakdownModal">
 <div class="modal-card approved-breakdown-card">
@@ -1144,12 +1147,32 @@ async function uploadFilesToTemp(files,folder,onDone){
     await onDone(uploaded);
   }catch(err){console.error(err);toast(err.message||'Falha ao enviar arquivo.')}
 }
-function renderMapFiles(t){let files=t.mapFiles||[];$('#mapFileList').innerHTML=files.length?files.map((f,i)=>`<div class="attachment-item"><span>📎</span><div class="file-meta"><a href="#" class="file-link" onclick="event.preventDefault();openCCGEAttachment(modalTask().mapFiles[${i}])">${esc(f.name)}</a><small>${formatBytes(f.size)} · ${attachmentDate(f)}</small></div><button type="button" class="attachment-open" onclick="openCCGEAttachment(modalTask().mapFiles[${i}])">Abrir</button><button type="button" class="attachment-remove" onclick="removeMapFile(${i})">Remover</button></div>`).join(''):'<div class="empty" style="padding:14px">Nenhum arquivo anexado.</div>'}
+
+function attachmentByKind(kind,index){const t=modalTask();return kind==='map'?(t.mapFiles||[])[index]:(t.documents||[])[index]}
+async function signedAttachmentUrl(f){
+ if(!f)throw new Error('Arquivo não disponível.');
+ if(f.storagePath){const bucket=f.storageBucket||CCGE_STORAGE_BUCKET;const {data,error}=await supabaseClient.storage.from(bucket).createSignedUrl(f.storagePath,3600);if(error||!data?.signedUrl)throw new Error(error?.message||'Não foi possível gerar o link.');return data.signedUrl}
+ if(typeof f.data==='string'&&f.data.startsWith('data:'))return f.data;
+ throw new Error('Arquivo legado sem conteúdo no Supabase.');
+}
+async function prepareAttachmentLinks(kind){
+ for(const a of document.querySelectorAll(`.ccge-storage-link[data-kind="${kind}"]`)){const i=Number(a.dataset.index);try{a.href=await signedAttachmentUrl(attachmentByKind(kind,i));a.dataset.ready='1'}catch(err){a.removeAttribute('href');a.dataset.ready='0';console.error(err)}}
+}
+window.openPreparedAttachment=async(kind,index)=>{try{const a=document.querySelector(`.ccge-storage-link[data-kind="${kind}"][data-index="${index}"]`);let url=a?.href||'';if(!url){url=await signedAttachmentUrl(attachmentByKind(kind,index));if(a)a.href=url}const w=window.open(url,'_blank','noopener');if(!w)window.location.href=url}catch(err){console.error(err);toast(`Não foi possível abrir o arquivo: ${err.message||'erro desconhecido'}`)}};
+function renderMapFiles(t){
+ let files=t.mapFiles||[];
+ $('#mapFileList').innerHTML=files.length?files.map((f,i)=>`<div class="attachment-item"><span>📎</span><div class="file-meta"><a class="file-link ccge-storage-link" data-kind="map" data-index="${i}" target="_blank" rel="noopener">${esc(f.name)}</a><small>${formatBytes(f.size)} · ${attachmentDate(f)}</small></div><button type="button" class="attachment-open" onclick="openPreparedAttachment('map',${i})">Abrir</button><button type="button" class="attachment-remove" onclick="removeMapFile(${i})">Remover</button></div>`).join(''):'<div class="empty" style="padding:14px">Nenhum arquivo anexado.</div>';
+ prepareAttachmentLinks('map');
+}
 window.removeMapFile=async i=>{let t=modalTask();t.mapFiles=t.mapFiles||[];await deleteCCGEAttachment(t.mapFiles[i]);t.mapFiles.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderMapFiles(t)};
 async function submitMapFiles(){return uploadFilesToTemp($('#mapFileInput').files,`tarefas/${editingId||'nova'}/mapas`,async uploaded=>{let t=modalTask();t.mapFiles=t.mapFiles||[];t.mapFiles.push(...uploaded);$('#taskModal').dataset.temp=JSON.stringify(t);renderMapFiles(t);$('#mapFileInput').value='';toast('Mapa/orçamento salvo no Supabase')})}
 $('#addMapFiles').onclick=submitMapFiles;
 $('#mapFileInput').addEventListener('change',submitMapFiles);
-function renderDocFiles(t){let files=t.documents||[];$('#docFileList').innerHTML=files.length?files.map((f,i)=>`<div class="attachment-item"><span>📄</span><div class="file-meta"><a href="#" class="file-link" onclick="event.preventDefault();openCCGEAttachment(modalTask().documents[${i}])">${esc(f.name)}</a><small>${formatBytes(f.size)} · ${attachmentDate(f)}</small></div><button type="button" class="attachment-open" onclick="openCCGEAttachment(modalTask().documents[${i}])">Abrir</button><button type="button" class="attachment-remove" onclick="removeDocFile(${i})">Remover</button></div>`).join(''):'<div class="empty" style="padding:14px">Nenhum arquivo anexado.</div>'}
+function renderDocFiles(t){
+ let files=t.documents||[];
+ $('#docFileList').innerHTML=files.length?files.map((f,i)=>`<div class="attachment-item"><span>📄</span><div class="file-meta"><a class="file-link ccge-storage-link" data-kind="doc" data-index="${i}" target="_blank" rel="noopener">${esc(f.name)}</a><small>${formatBytes(f.size)} · ${attachmentDate(f)}</small></div><button type="button" class="attachment-open" onclick="openPreparedAttachment('doc',${i})">Abrir</button><button type="button" class="attachment-remove" onclick="removeDocFile(${i})">Remover</button></div>`).join(''):'<div class="empty" style="padding:14px">Nenhum arquivo anexado.</div>';
+ prepareAttachmentLinks('doc');
+}
 window.removeDocFile=async i=>{let t=modalTask();t.documents=t.documents||[];let f=t.documents[i];await deleteCCGEAttachment(f);t.documents.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderDocFiles(t)};
 async function submitDocFiles(){return uploadFilesToTemp($('#docFileInput').files,`tarefas/${editingId||'nova'}/documentos`,async uploaded=>{let t=modalTask();t.documents=t.documents||[];t.documents.push(...uploaded);$('#taskModal').dataset.temp=JSON.stringify(t);renderDocFiles(t);$('#docFileInput').value='';toast('Arquivo(s) salvo(s) no Supabase')})}
 $('#addDocFiles').onclick=submitDocFiles;
