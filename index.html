@@ -249,8 +249,8 @@
 .drop-zone:hover,.drop-zone.dragover{border-color:var(--blue);background:#eef5ff;box-shadow:0 0 0 3px rgba(42,104,180,.08)}
 .drop-zone input[type=file]{max-width:100%}.drop-zone .drop-hint{color:var(--muted);font-size:12px}.drop-zone .drop-hint b{color:var(--navy)}
 #syncFeedback.show{opacity:1!important;transform:translateY(0)!important}
-.file-link{color:var(--navy);font-weight:800;text-decoration:none;cursor:pointer;border-bottom:1px solid transparent}
-.file-link:hover{color:var(--blue);border-bottom-color:currentColor}
+.file-link{color:var(--blue);font-weight:650;text-decoration:none;cursor:pointer;border:0}
+.file-link:hover{text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px}
 .attachment-open{background:#eef4ff!important;color:var(--navy)!important;border:1px solid #cbdaf2!important}
 .attachment-open:hover{background:#e1ebfb!important}
 .attachment-remove{background:#fff!important;color:#a43a3a!important;border:1px solid #e7caca!important}
@@ -258,7 +258,7 @@
 
 .attachment-item{gap:12px!important;align-items:center!important}
 .file-meta{min-width:0;flex:1}
-.file-meta .file-link{display:block;font-size:14px!important;font-weight:650!important;line-height:1.3;white-space:normal;overflow-wrap:anywhere}
+.file-meta .file-link{display:inline!important;width:auto!important;font-size:14px!important;font-weight:650!important;line-height:1.3;white-space:normal;overflow-wrap:anywhere}
 .file-meta small{display:block!important;margin-top:4px;color:var(--muted);font-size:12px!important;line-height:1.3}
 .attachment-item .attachment-open,.attachment-item .attachment-remove{font-size:13px!important;padding:8px 11px!important;border-radius:9px!important}
 
@@ -270,6 +270,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
+if('scrollRestoration' in history)history.scrollRestoration='manual';
 const SUPABASE_URL = "https://vrjcwqbaamakyskpdnnr.supabase.co";
 const SUPABASE_KEY = "sb_publishable_b_x8NGJj2WAmRZOwFhE4-Q_HO5ZFotq";
 const CCGE_STATE_ID = "00000000-0000-0000-0000-000000000001";
@@ -289,24 +290,23 @@ async function uploadCCGEFile(file,folder='geral'){
 }
 async function openCCGEAttachment(f){
   if(!f){toast('Arquivo não disponível.');return false}
+  const preview=window.open('about:blank','_blank');
+  if(preview){try{preview.document.write('<!doctype html><title>CCGE</title><body style="font-family:Arial;padding:24px">Carregando arquivo...</body>');preview.document.close()}catch(e){}}
   try{
     if(f.storagePath){
       const bucket=f.storageBucket||CCGE_STORAGE_BUCKET;
-      const {data,error}=await supabaseClient.storage.from(bucket).download(f.storagePath);
-      if(error||!data)throw new Error(error?.message||'Arquivo não retornado pelo Storage.');
-      const url=URL.createObjectURL(data);
-      const w=window.open(url,'_blank','noopener');
-      if(!w){
-        const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener';document.body.appendChild(a);a.click();a.remove();
-      }
-      setTimeout(()=>URL.revokeObjectURL(url),60000);
+      const {data,error}=await supabaseClient.storage.from(bucket).createSignedUrl(f.storagePath,600);
+      if(error||!data?.signedUrl)throw new Error(error?.message||'Não foi possível gerar o acesso temporário.');
+      if(preview){preview.location.href=data.signedUrl}else{window.location.href=data.signedUrl}
       return true;
     }
     if(typeof f.data==='string'&&f.data.startsWith('data:')){
-      const a=document.createElement('a');a.href=f.data;a.target='_blank';a.rel='noopener';document.body.appendChild(a);a.click();a.remove();return true;
+      if(preview)preview.location.href=f.data;else window.location.href=f.data;
+      return true;
     }
     throw new Error('Anexo legado sem arquivo no Supabase. Reanexe o documento para migrá-lo.');
   }catch(err){
+    if(preview)preview.close();
     console.error('Falha ao abrir anexo:',err);
     toast(`Não foi possível abrir o arquivo: ${err.message||'erro desconhecido'}`);
     return false;
@@ -374,7 +374,7 @@ async function carregarEstadoNuvem() {
 
 <div class="app">
 <aside class="sidebar">
- <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.21</small></div></div>
+ <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.22</small></div></div>
  <nav class="nav" id="nav">
   <button class="active" data-page="home">⌂ <span class="label">Centro de Comando</span></button>
   <button data-page="structure" data-context="work">◫ <span class="label">Etapas</span></button>
@@ -823,7 +823,8 @@ window.inlineEdit=(id,k,v)=>{let t=state.tasks.find(x=>x.id===id);if(!t)return;l
 window.inlineCustom=(id,k,v)=>{let t=state.tasks.find(x=>x.id===id);if(!t)return;t.custom=t.custom||{};t.custom[k]=v.trim();save('Campo personalizado atualizado');renderAll()}
 
 window.addEventListener('pageshow',()=>{window.scrollTo(0,0);document.documentElement.scrollTop=0;document.body.scrollTop=0;const appMain=document.querySelector('.main');if(appMain)appMain.scrollTop=0});
-function nav(page){$$('.page').forEach(x=>x.classList.remove('active'));$('#page-'+page).classList.add('active');$$('#nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===page));renderAll();window.scrollTo(0,0);document.documentElement.scrollTop=0;document.body.scrollTop=0;const appMain=document.querySelector('.main');if(appMain)appMain.scrollTop=0}
+function forceTop(){window.scrollTo(0,0);document.documentElement.scrollTop=0;document.body.scrollTop=0;const m=document.querySelector('.main');if(m)m.scrollTop=0;}
+function nav(page){$$('.page').forEach(x=>x.classList.remove('active'));$('#page-'+page).classList.add('active');$$('#nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===page));renderAll();requestAnimationFrame(()=>requestAnimationFrame(forceTop))}
 $$('#nav button').forEach(b=>b.onclick=()=>nav(b.dataset.page));$$('[data-goto]').forEach(b=>b.onclick=()=>nav(b.dataset.goto));
 
 /* Motor financeiro canônico v1.17
@@ -1373,9 +1374,7 @@ function initDropZones(root=document){
      const files=[...(e.dataTransfer?.files||[])];if(!files.length)return;
      try{const dt=new DataTransfer();files.forEach(f=>dt.items.add(f));input.files=dt.files}catch(err){toast('Seu navegador não permitiu preparar os arquivos arrastados. Use o seletor de arquivos.');return}
      input.dispatchEvent(new Event('change',{bubbles:true}));
-     const action=zone.dataset.dropAction;if(action&&document.getElementById(action))document.getElementById(action).click();
-     else if(zone.dataset.additiveIndex!==undefined&&typeof window.attachAdditiveFiles==='function')window.attachAdditiveFiles(Number(zone.dataset.additiveIndex));
-     else toast(files.length===1?`Arquivo selecionado: ${files[0].name}`:`${files.length} arquivos selecionados`);
+     if(zone.dataset.additiveIndex!==undefined&&typeof window.attachAdditiveFiles==='function')window.attachAdditiveFiles(Number(zone.dataset.additiveIndex));
    });
    zone.addEventListener('click',e=>{if(e.target===zone||e.target.classList.contains('drop-hint'))input.click()});
  });
@@ -1435,6 +1434,7 @@ async function bootstrapCCGE(){
   setCommandScope(state.mode||'Todos');
   renderAll();
   armInactivity();
+  requestAnimationFrame(()=>requestAnimationFrame(forceTop));
 }
 
 document.getElementById('loginForm').addEventListener('submit',async e=>{
