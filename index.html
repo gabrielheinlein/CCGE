@@ -312,7 +312,7 @@ async function carregarEstadoNuvem() {
 
 <div class="app">
 <aside class="sidebar">
- <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.17</small></div></div>
+ <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.18</small></div></div>
  <nav class="nav" id="nav">
   <button class="active" data-page="home">⌂ <span class="label">Centro de Comando</span></button>
   <button data-page="structure" data-context="work">◫ <span class="label">Etapas</span></button>
@@ -614,7 +614,7 @@ function normalizeState(raw){
    const inferredPhase=v.phaseId||legacyActivity?.phaseId||'';
    return normalizeTaskName({...v,
      phaseId:inferredPhase,archived:!!v.archived,
-     approved:Number(v.approved??v.contracted??0),
+     approved:Number(v.approved??v.contracted??0),approvedOverride:v.approvedOverride===true,
      mapFiles:Array.isArray(v.mapFiles)?v.mapFiles:[],documents:Array.isArray(v.documents)?v.documents:[],
      videos:Array.isArray(v.videos)?v.videos:[],photos:Array.isArray(v.photos)?v.photos:[],
      history:Array.isArray(v.history)?v.history:[],scope:v.scope||'',description:v.description||v.notes||'',
@@ -775,7 +775,8 @@ $$('#nav button').forEach(b=>b.onclick=()=>nav(b.dataset.page));$$('[data-goto]'
 function financialTruth(t){
  const estimated=Number(t?.estimated||0);
  const approvedEntered=Number(t?.approved||0);
- const approvedEffective=approvedEntered||estimated;
+ const approvedOverride=t?.approvedOverride===true;
+ const approvedEffective=approvedOverride?approvedEntered:estimated;
  const contracted=Number(t?.contracted||0);
  const additives=Number(t?.additives||0);
  const contractUpdated=contracted+additives;
@@ -783,7 +784,7 @@ function financialTruth(t){
  const invoiced=invoiceSum||Number(t?.invoiced||0);
  const paymentSum=(t?.payments||[]).reduce((s,p)=>s+Number(p.paidAmount||0),0);
  const paid=paymentSum||Number(t?.paid||0);
- return {estimated,approvedEntered,approvedEffective,additives,contracted,contractUpdated,invoiced,paid,contractBalance:contractUpdated-paid};
+ return {estimated,approvedEntered,approvedOverride,approvedEffective,additives,contracted,contractUpdated,invoiced,paid,contractBalance:contractUpdated-paid};
 }
 function approvedWithAdditives(t){return financialTruth(t).approvedEffective}
 function sumApprovedWithAdditives(arr){return (arr||[]).reduce((s,t)=>s+financialTruth(t).approvedEffective,0)}
@@ -980,7 +981,7 @@ function openTask(id,activityId,forcedNature,forcedPhaseId){
 ;
  const taskFin=taskFinancial(t),approvedEffective=financialTruth(t).approvedEffective;
  $('#taskForm').insertAdjacentHTML('beforeend',`<div class="field full"><details class="card" style="padding:14px"><summary style="cursor:pointer;font-weight:800">Mais informações financeiras</summary><div class="form-grid" style="margin-top:14px">
- <div class="field"><label>Valor aprovado <small style="color:var(--muted)">(opcional)</small></label><input class="money-input" data-key="approved" data-money="true" type="text" inputmode="decimal" value="${Number(t.approved||0)?esc(brl(t.approved)):''}" placeholder="Se vazio, usa o valor previsto"><small style="color:var(--muted)">Aprovado efetivo: ${brl(approvedEffective)}</small></div>
+ <div class="field"><label>Valor aprovado diferente do previsto</label><label style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><input type="checkbox" data-key="approvedOverride" ${t.approvedOverride===true?'checked':''} style="width:auto"> Usar valor aprovado específico</label><input class="money-input" data-key="approved" data-money="true" type="text" inputmode="decimal" value="${t.approvedOverride===true&&Number(t.approved||0)?esc(brl(t.approved)):''}" placeholder="Preencha somente se for diferente do previsto" ${t.approvedOverride===true?'':'disabled'}><small style="color:var(--muted)">Aprovado efetivo: ${brl(approvedEffective)}. Sem marcação, acompanha automaticamente o valor previsto.</small></div>
  <div class="field"><label>Aditivos</label><input value="${brl(Number(t.additives||0))}" disabled><small style="color:var(--muted)">Calculado pelos registros de aditivo.</small></div>
  <div class="field"><label>Faturado</label><input value="${brl(taskFin.invoiced)}" disabled><small style="color:var(--muted)">Calculado pelos documentos/lançamentos financeiros.</small></div>
  <div class="field"><label>Pago</label><input value="${brl(taskFin.paid)}" disabled><small style="color:var(--muted)">Calculado pelos pagamentos efetivamente registrados.</small></div>
@@ -988,6 +989,8 @@ function openTask(id,activityId,forcedNature,forcedPhaseId){
  <div class="field"><label>Contrato atualizado</label><input value="${brl(taskFin.committed)}" disabled><small style="color:var(--muted)">Valor contratado + aditivos.</small></div>
  </div><div class="toolbar" style="margin-top:10px"><span class="spacer"></span><button type="button" class="secondary" onclick="document.querySelector('[data-tab=payments]').click()">Gerenciar pagamentos →</button></div></details></div>`);
 
+ const approvedToggle=$('#taskForm input[data-key="approvedOverride"]'),approvedInput=$('#taskForm input[data-key="approved"]');
+ if(approvedToggle&&approvedInput)approvedToggle.onchange=()=>{approvedInput.disabled=!approvedToggle.checked;if(!approvedToggle.checked)approvedInput.value='';else approvedInput.focus()};
  $('#taskNotes').value=t.notes||'';$('#taskMap').value=t.map||'';$('#taskMapApprovalDate').value=t.mapApprovalDate||'';
  $('#taskOwner').value=t.owner||'';$('#taskBlocked').value=String(!!t.blocked);$('#taskBlocker').value=t.blocker||'';$('#taskBlockedBy').value=t.blockedBy||'';$('#taskLastUpdate').value=t.lastUpdate||'';$('#taskNextAction').value=t.nextAction||'';
  $('#paymentMethod').value=t.paymentMethod||'';$('#paymentTerms').value=t.paymentTerms||'';$('#paymentCount').value=t.paymentCount||'';
@@ -1003,7 +1006,7 @@ window.createPhaseFromTask=()=>{
 window.openTask=openTask;
 function modalTask(){
  let t=JSON.parse($('#taskModal').dataset.temp);
- $$('#taskForm [data-key]').forEach(i=>{let k=i.dataset.key,v=i.dataset.money==='true'?parseMoney(i.value):(i.type==='number'?Number(i.value||0):i.value);if(['startPlan','endPlan'].includes(k)&&i.dataset.original===''&&i.dataset.touched!=='1')v='';t[k]=v});
+ $$('#taskForm [data-key]').forEach(i=>{let k=i.dataset.key,v=i.type==='checkbox'?i.checked:(i.dataset.money==='true'?parseMoney(i.value):(i.type==='number'?Number(i.value||0):i.value));if(['startPlan','endPlan'].includes(k)&&i.dataset.original===''&&i.dataset.touched!=='1')v='';t[k]=v});
  t.custom=t.custom||{};$$('#taskForm [data-custom]').forEach(i=>t.custom[i.dataset.custom]=i.value);
  t.notes=$('#taskNotes').value;t.map=$('#taskMap').value;t.mapApprovalDate=$('#taskMapApprovalDate').value||'';
  t.owner=$('#taskOwner').value.trim();t.blocked=$('#taskBlocked').value==='true';t.blocker=$('#taskBlocker').value.trim();t.blockedBy=$('#taskBlockedBy').value.trim();t.lastUpdate=$('#taskLastUpdate').value.trim();t.nextAction=$('#taskNextAction').value.trim();
