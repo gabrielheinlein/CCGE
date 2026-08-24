@@ -306,11 +306,11 @@ async function openCCGEAttachment(f){
       const bucket=f.storageBucket||CCGE_STORAGE_BUCKET;
       const {data,error}=await supabaseClient.storage.from(bucket).createSignedUrl(f.storagePath,600);
       if(error||!data?.signedUrl)throw new Error(error?.message||'Não foi possível gerar o acesso temporário.');
-      if(preview){preview.location.href=data.signedUrl}else{window.location.href=data.signedUrl}
+      if(preview){preview.location.href=data.signedUrl}else{toast('O navegador bloqueou a nova aba. Permita pop-ups para o CCGE.')}
       return true;
     }
     if(typeof f.data==='string'&&f.data.startsWith('data:')){
-      if(preview)preview.location.href=f.data;else window.location.href=f.data;
+      if(preview)preview.location.href=f.data;else toast('O navegador bloqueou a nova aba. Permita pop-ups para o CCGE.');
       return true;
     }
     throw new Error('Anexo legado sem arquivo no Supabase. Reanexe o documento para migrá-lo.');
@@ -380,7 +380,7 @@ async function carregarEstadoNuvem() {
 </form></div>
 <div class="app">
 <aside class="sidebar">
- <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.25</small></div></div>
+ <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.26</small></div></div>
  <nav class="nav" id="nav">
   <button class="active" data-page="home">⌂ <span class="label">Centro de Comando</span></button>
   <button data-page="structure" data-context="work">◫ <span class="label">Etapas</span></button>
@@ -1127,12 +1127,13 @@ async function prepareAdditiveLinks(){
  }
 }
 window.openPreparedAdditiveAttachment=async(i,j)=>{
+ const tab=window.open('about:blank','_blank');
  try{
    const a=document.querySelector(`.additive-storage-link[data-additive="${i}"][data-file="${j}"]`);
    let url=a?.getAttribute('href')||'';
    if(!url){url=await signedAttachmentUrl(modalTask().additiveRecords?.[i]?.files?.[j]);if(a)a.href=url}
-   const w=window.open(url,'_blank','noopener');if(!w)window.location.href=url;
- }catch(err){console.error(err);toast(`Não foi possível abrir o arquivo: ${err.message||'erro desconhecido'}`)}
+   if(tab)tab.location.replace(url);else toast('O navegador bloqueou a nova aba. Clique no nome do arquivo ou permita pop-ups para o CCGE.');
+ }catch(err){if(tab)tab.close();console.error(err);toast(`Não foi possível abrir o arquivo: ${err.message||'erro desconhecido'}`)}
 };
 function initAdditiveFileInputs(){
  document.querySelectorAll('input[id^="additiveFile_"]').forEach(input=>{
@@ -1187,7 +1188,15 @@ async function signedAttachmentUrl(f){
 async function prepareAttachmentLinks(kind){
  for(const a of document.querySelectorAll(`.ccge-storage-link[data-kind="${kind}"]`)){const i=Number(a.dataset.index);try{a.href=await signedAttachmentUrl(attachmentByKind(kind,i));a.dataset.ready='1'}catch(err){a.removeAttribute('href');a.dataset.ready='0';console.error(err)}}
 }
-window.openPreparedAttachment=async(kind,index)=>{try{const a=document.querySelector(`.ccge-storage-link[data-kind="${kind}"][data-index="${index}"]`);let url=a?.href||'';if(!url){url=await signedAttachmentUrl(attachmentByKind(kind,index));if(a)a.href=url}const w=window.open(url,'_blank','noopener');if(!w)window.location.href=url}catch(err){console.error(err);toast(`Não foi possível abrir o arquivo: ${err.message||'erro desconhecido'}`)}};
+window.openPreparedAttachment=async(kind,index)=>{
+ const tab=window.open('about:blank','_blank');
+ try{
+  const a=document.querySelector(`.ccge-storage-link[data-kind="${kind}"][data-index="${index}"]`);
+  let url=a?.getAttribute('href')||'';
+  if(!url){url=await signedAttachmentUrl(attachmentByKind(kind,index));if(a)a.href=url}
+  if(tab)tab.location.replace(url);else toast('O navegador bloqueou a nova aba. Clique no nome do arquivo ou permita pop-ups para o CCGE.');
+ }catch(err){if(tab)tab.close();console.error(err);toast(`Não foi possível abrir o arquivo: ${err.message||'erro desconhecido'}`)}
+};
 function renderMapFiles(t){
  let files=t.mapFiles||[];
  $('#mapFileList').innerHTML=files.length?files.map((f,i)=>`<div class="attachment-item"><span>📎</span><div class="file-meta"><a class="file-link ccge-storage-link" data-kind="map" data-index="${i}" target="_blank" rel="noopener">${esc(f.name)}</a><small>${formatBytes(f.size)} · ${attachmentDate(f)}</small></div><button type="button" class="attachment-open" onclick="openPreparedAttachment('map',${i})">Abrir</button><button type="button" class="attachment-remove" onclick="removeMapFile(${i})">Remover</button></div>`).join(''):'<div class="empty" style="padding:14px">Nenhum arquivo anexado.</div>';
