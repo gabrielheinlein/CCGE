@@ -271,6 +271,9 @@
 #logoutBtn.logout-top{position:static!important;inset:auto!important;margin:0!important;width:auto!important;z-index:auto!important;background:#fff!important;color:var(--navy)!important;border:1px solid var(--line)!important}
 .file-meta .file-link.ccge-storage-link{display:inline!important;width:auto!important;max-width:100%;border:0!important;text-decoration:none!important}
 .file-meta .file-link.ccge-storage-link:hover{text-decoration:underline!important;text-decoration-thickness:1px!important;text-underline-offset:2px!important}
+
+.file-meta .file-link.additive-storage-link{display:inline!important;width:auto!important;max-width:100%;font-size:14px!important;font-weight:500!important;color:var(--blue)!important;border:0!important;text-decoration:none!important;cursor:pointer}
+.file-meta .file-link.additive-storage-link:hover{text-decoration:underline!important;text-decoration-thickness:1px!important;text-underline-offset:2px!important}
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -377,7 +380,7 @@ async function carregarEstadoNuvem() {
 </form></div>
 <div class="app">
 <aside class="sidebar">
- <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.24</small></div></div>
+ <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.25</small></div></div>
  <nav class="nav" id="nav">
   <button class="active" data-page="home">⌂ <span class="label">Centro de Comando</span></button>
   <button data-page="structure" data-context="work">◫ <span class="label">Etapas</span></button>
@@ -1111,8 +1114,34 @@ function renderAdditives(t){
  <div class="field"><label>Data de aprovação</label><input type="date" value="${esc(a.approvalDate||'')}" onchange="editAdditiveDate(${i},this.value)"></div>
  <div class="field"><label>Valor do aditivo</label><input type="text" inputmode="decimal" value="${a.value?esc(brl(a.value)):''}" onchange="editAdditive(${i},'value',this.value)"></div>
  <div class="field full"><label>Observação</label><textarea onchange="editAdditive(${i},'notes',this.value)">${esc(a.notes||'')}</textarea></div>
- <div class="field full"><label>Documento do aditivo</label><div class="drop-zone" data-drop-input="additiveFile_${i}" data-additive-index="${i}"><input type="file" id="additiveFile_${i}" accept=".pdf,.xlsx,.xls,.doc,.docx,image/*" multiple><span class="drop-hint"><b>Arraste documentos do aditivo para cá</b><br>ou clique para selecionar</span><button type="button" class="secondary" onclick="attachAdditiveFiles(${i})">Anexar</button></div><div class="attachment-list">${(a.files||[]).map((f,j)=>`<div class="attachment-item"><span>📎 ${esc(f.name||'Arquivo')}</span><span><button type="button" onclick="openAdditiveFile(${i},${j})">Abrir</button><button type="button" class="danger" onclick="removeAdditiveFile(${i},${j})">Excluir</button></span></div>`).join('')}</div></div></div>
+ <div class="field full"><label>Documento do aditivo</label><div class="drop-zone" data-drop-input="additiveFile_${i}" data-additive-index="${i}"><input type="file" id="additiveFile_${i}" accept=".pdf,.xlsx,.xls,.doc,.docx,image/*" multiple><span class="drop-hint"><b>Arraste documentos do aditivo para cá</b><br>ou clique para selecionar</span></div><div class="attachment-list">${(a.files||[]).map((f,j)=>`<div class="attachment-item"><span>📎</span><div class="file-meta"><a class="file-link additive-storage-link" data-additive="${i}" data-file="${j}" target="_blank" rel="noopener">${esc(f.name||'Arquivo')}</a><small>${formatBytes(f.size)} · ${attachmentDate(f)}</small></div><button type="button" class="attachment-open" onclick="openPreparedAdditiveAttachment(${i},${j})">Abrir</button><button type="button" class="attachment-remove" onclick="removeAdditiveFile(${i},${j})">Excluir</button></div>`).join('')}</div></div></div>
  <div class="toolbar"><span class="spacer"></span><button type="button" class="danger" onclick="removeAdditive(${i})">Excluir aditivo</button></div></div>`).join(''):'<div class="empty" style="padding:18px">Nenhum aditivo cadastrado.</div>';
+}
+
+async function prepareAdditiveLinks(){
+ for(const a of document.querySelectorAll('.additive-storage-link')){
+   const i=Number(a.dataset.additive),j=Number(a.dataset.file);
+   const f=modalTask().additiveRecords?.[i]?.files?.[j];
+   try{a.href=await signedAttachmentUrl(f);a.dataset.ready='1'}
+   catch(err){a.removeAttribute('href');a.dataset.ready='0';console.error('Falha ao preparar link de aditivo:',err)}
+ }
+}
+window.openPreparedAdditiveAttachment=async(i,j)=>{
+ try{
+   const a=document.querySelector(`.additive-storage-link[data-additive="${i}"][data-file="${j}"]`);
+   let url=a?.getAttribute('href')||'';
+   if(!url){url=await signedAttachmentUrl(modalTask().additiveRecords?.[i]?.files?.[j]);if(a)a.href=url}
+   const w=window.open(url,'_blank','noopener');if(!w)window.location.href=url;
+ }catch(err){console.error(err);toast(`Não foi possível abrir o arquivo: ${err.message||'erro desconhecido'}`)}
+};
+function initAdditiveFileInputs(){
+ document.querySelectorAll('input[id^="additiveFile_"]').forEach(input=>{
+   if(input.dataset.autoUpload==='1')return;
+   input.dataset.autoUpload='1';
+   input.addEventListener('change',()=>{const i=Number(input.id.replace('additiveFile_',''));if(input.files?.length)attachAdditiveFiles(i)});
+ });
+
+ prepareAdditiveLinks();initAdditiveFileInputs();
 }
 window.editAdditive=(i,k,v)=>{let t=modalTask();if(k==='value')v=parseMoney(v);t.additiveRecords[i][k]=v;t.additives=additiveTotal(t);$('#taskModal').dataset.temp=JSON.stringify(t);renderAdditives(t)};
 window.removeAdditive=i=>{let t=modalTask(),a=t.additiveRecords?.[i];if(!a)return;if(!confirm(`Excluir o aditivo "${a.name||'Aditivo'}"?`))return;t.additiveRecords.splice(i,1);t.additives=additiveTotal(t);$('#taskModal').dataset.temp=JSON.stringify(t);renderAdditives(t)};
