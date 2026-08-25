@@ -278,7 +278,7 @@
 .file-meta .monthly-storage-link,.file-meta .video-storage-link{display:inline!important;width:auto!important;max-width:100%;font-size:14px!important;font-weight:500!important;color:var(--blue)!important;border:0!important;text-decoration:none!important;cursor:pointer}
 .file-meta .monthly-storage-link:hover,.file-meta .video-storage-link:hover{text-decoration:underline!important;text-decoration-thickness:1px!important;text-underline-offset:2px!important}
 
-/* v1.29 — Etapas como accordion gerencial */
+/* v1.30 — Etapas como accordion gerencial */
 .phase-head{align-items:flex-start!important}
 .phase-chevron{flex:0 0 34px;width:34px;height:34px;margin:2px 0 0 2px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--navy);font-size:14px;font-weight:800;cursor:pointer}
 .phase-chevron:hover{background:var(--soft)}
@@ -289,6 +289,23 @@
 .phase-alert-late{color:#9b2c2c;background:#fff1f1}
 .phase-alert-blocked,.phase-alert-critical{color:#8a3d00;background:#fff5e8}
 .phase-toggle-all{padding:8px 11px!important;white-space:nowrap}
+
+.login-spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.42);border-top-color:#fff;border-radius:50%;display:inline-block;animation:ccgeSpin .75s linear infinite;vertical-align:-3px;margin-right:7px}
+@keyframes ccgeSpin{to{transform:rotate(360deg)}}
+.login-busy{pointer-events:none;opacity:.9}
+.login-loading-note{margin-top:9px;font-size:12px;color:#64748b;font-weight:700;text-align:center}
+.phase-head{align-items:flex-start!important}
+.phase-left{align-items:flex-start!important}
+.phase-title{padding-top:2px}
+.phase-managerial-line{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:7px;font-size:11px;color:#64748b}
+.phase-managerial-line b{color:#0b2d63}
+.phase-managerial-line .mini-track{width:76px;height:7px;background:#dfe7f0;border-radius:99px;overflow:hidden}
+.phase-managerial-line .mini-track i{display:block;height:100%;background:#2f8b68;border-radius:99px}
+.phase-managerial-line .late{background:#fde8e8;color:#9b2020;padding:3px 7px;border-radius:999px;font-weight:800}
+
+.phase-title-wrap{display:flex!important;flex-direction:column!important;align-items:flex-start!important;gap:0!important;min-width:0;flex:1}
+.phase-summary{margin-top:7px!important;justify-content:flex-start!important;gap:12px!important;flex-wrap:wrap}
+.phase-summary .phase-analysis-control{margin-left:4px}
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -303,6 +320,18 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const CCGE_STORAGE_BUCKET = "ccge-files";
 function safeFileName(name){return String(name||'arquivo').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9._-]+/g,'_').slice(-140)}
+
+function setLoginLoading(on){
+ const btn=document.querySelector('#loginScreen button[type="submit"],#loginScreen button,.login-card button[type="submit"],.login-card button');
+ if(!btn)return;
+ if(!btn.dataset.originalHtml)btn.dataset.originalHtml=btn.innerHTML;
+ btn.disabled=on;btn.classList.toggle('login-busy',on);
+ btn.innerHTML=on?'<span class="login-spinner"></span>Carregando sistema...':btn.dataset.originalHtml;
+ let note=document.getElementById('ccgeLoginLoadingNote');
+ if(on&&!note){note=document.createElement('div');note.id='ccgeLoginLoadingNote';note.className='login-loading-note';note.textContent='Autenticando e sincronizando seus dados...';btn.insertAdjacentElement('afterend',note)}
+ if(!on&&note)note.remove();
+ document.body.style.cursor=on?'progress':'';
+}
 async function uploadCCGEFile(file,folder='geral'){
   if(!file)throw new Error('Arquivo ausente.');
   const {data:{user}}=await supabaseClient.auth.getUser();
@@ -395,7 +424,7 @@ async function carregarEstadoNuvem() {
 </form></div>
 <div class="app">
 <aside class="sidebar">
- <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.29</small></div></div>
+ <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.30</small></div></div>
  <nav class="nav" id="nav">
   <button class="active" data-page="home">⌂ <span class="label">Centro de Comando</span></button>
   <button data-page="structure" data-context="work">◫ <span class="label">Etapas</span></button>
@@ -1037,8 +1066,7 @@ function renderHierarchy(){
     <div class="phase-head">
       <button type="button" class="phase-chevron" onclick="togglePhaseCollapse('${f.id}')" aria-label="${collapsed?'Expandir':'Recolher'} etapa" aria-expanded="${!collapsed}">${collapsed?'▶':'▼'}</button>
       <div class="phase-title-wrap"><input type="text" value="${esc(f.name)}" onchange="renamePhase('${f.id}',this.value)" aria-label="Nome da etapa" ${f.archived?'disabled':''}>
-      ${!f.archived?`<label class="phase-analysis-control"><input type="checkbox" ${allSel?'checked':''} ${someSel&&!allSel?'data-partial="true"':''} onchange="togglePhaseSelection('${f.id}',this.checked)"> Incluir na análise</label>`:''}
-      <div class="phase-summary"><span><b>${activeTasks.length}</b> tarefas</span><span class="phase-progress"><b>${phaseExecution(f.id)}%</b><span class="phase-progress-bar"><i style="width:${phaseExecution(f.id)}%"></i></span><em>execução</em></span><span><b>${done}</b> concluídas</span>${alerts}</div>
+      <div class="phase-summary"><span><b>${activeTasks.length}</b> tarefas</span><span class="phase-progress"><b>${phaseExecution(f.id)}%</b><span class="phase-progress-bar"><i style="width:${phaseExecution(f.id)}%"></i></span><em>execução</em></span><span><b>${done}</b> concluídas</span>${alerts}${!f.archived?`<label class="phase-analysis-control"><input type="checkbox" ${allSel?'checked':''} ${someSel&&!allSel?'data-partial="true"':''} onchange="togglePhaseSelection('${f.id}',this.checked)"> Incluir na análise</label>`:''}</div>
     </div><div class="object-actions">${!f.archived?`<button class="object-primary" onclick="openNewTaskForPhase('${f.id}')">+ Tarefa</button>`:''}${actionMenu('phase',f.id,f.archived)}</div></div>
     <div class="phase-task-body" ${collapsed?'hidden':''}>
     ${tasks.length?`<div class="task-list"><div class="task-list-head"><span>Tarefa</span><span>Status</span><span>Prioridade</span><span>% execução</span><span>Ações</span></div>
@@ -1605,6 +1633,8 @@ function armInactivity(){
 });
 
 async function bootstrapCCGE(){
+setLoginLoading(true);try{
+
   if(ccgeBootstrapped){showAuthGate(false);armInactivity();return}
   let cloudState=null, localState=null;
   try{cloudState=await carregarEstadoNuvem()}catch(e){console.error(e)}
@@ -1632,6 +1662,8 @@ async function bootstrapCCGE(){
   renderAll();
   armInactivity();
   requestAnimationFrame(()=>requestAnimationFrame(forceTop));
+
+}finally{setLoginLoading(false)}
 }
 
 document.getElementById('loginForm').addEventListener('submit',async e=>{
