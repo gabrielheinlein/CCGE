@@ -274,6 +274,9 @@
 
 .file-meta .file-link.additive-storage-link{display:inline!important;width:auto!important;max-width:100%;font-size:14px!important;font-weight:500!important;color:var(--blue)!important;border:0!important;text-decoration:none!important;cursor:pointer}
 .file-meta .file-link.additive-storage-link:hover{text-decoration:underline!important;text-decoration-thickness:1px!important;text-underline-offset:2px!important}
+
+.file-meta .monthly-storage-link,.file-meta .video-storage-link{display:inline!important;width:auto!important;max-width:100%;font-size:14px!important;font-weight:500!important;color:var(--blue)!important;border:0!important;text-decoration:none!important;cursor:pointer}
+.file-meta .monthly-storage-link:hover,.file-meta .video-storage-link:hover{text-decoration:underline!important;text-decoration-thickness:1px!important;text-underline-offset:2px!important}
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -380,7 +383,7 @@ async function carregarEstadoNuvem() {
 </form></div>
 <div class="app">
 <aside class="sidebar">
- <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.26</small></div></div>
+ <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.28</small></div></div>
  <nav class="nav" id="nav">
   <button class="active" data-page="home">⌂ <span class="label">Centro de Comando</span></button>
   <button data-page="structure" data-context="work">◫ <span class="label">Etapas</span></button>
@@ -512,7 +515,7 @@ async function carregarEstadoNuvem() {
     <div class="field full form-section compact"><h4>4. Documento do contrato</h4><p>Anexe o contrato, proposta assinada, aditivo ou outro documento relacionado.</p></div>
 <div class="field full">
  <label>Contrato / Documento</label>
- <div class="contract-upload-box drop-zone" data-drop-input="mcAttachment">
+ <div class="contract-upload-box drop-zone" data-drop-input="mcAttachment" data-upload-handler="monthly">
    <input id="mcAttachment" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"><span class="drop-hint"><b>Arraste o contrato para cá</b><br>ou clique para selecionar</span>
    <small>PDF, Word, Excel ou imagem. O arquivo fica vinculado a este contrato mensal.</small>
    <div id="mcAttachmentCurrent"></div>
@@ -600,7 +603,7 @@ async function carregarEstadoNuvem() {
 </div><div class="tab-content project-only" id="tab-projectFinance">
  <div class="subsection-head"><h4>Notas fiscais e boletos</h4><button class="secondary" type="button" id="addInvoice">+ Adicionar lançamento</button></div><div id="invoiceList" class="mini-list"></div>
  <div class="subsection-head"><h4>Entregáveis, revisões e aprovações</h4><button class="secondary" type="button" id="addDeliverable">+ Adicionar entregável</button></div><div id="deliverableList" class="mini-list"></div>
- </div><div class="tab-content" id="tab-documents"><div class="field full"><label>Anexar mapa de equalização / orçamento</label><div class="drop-zone" data-drop-input="mapFileInput"><input type="file" id="mapFileInput" accept=".pdf,.xlsx,.xls,.doc,.docx,image/*" multiple><span class="drop-hint"><b>Arraste mapa/orçamento para cá</b><br>ou clique para selecionar</span><button class="primary" id="addMapFiles" style="display:none" type="button">Anexar mapa/orçamento</button></div><div id="mapFileList" class="attachment-list"></div></div><div class="field full" style="margin-top:16px"><label>Demais arquivos do registro</label><div class="drop-zone" data-drop-input="docFileInput"><input type="file" id="docFileInput" multiple><span class="drop-hint"><b>Arraste os arquivos para cá</b><br>ou clique para selecionar</span><button class="primary" id="addDocFiles" style="display:none" type="button">Anexar arquivos</button></div><div id="docFileList" class="attachment-list"></div></div></div><div class="tab-content" id="tab-images"><div class="toolbar"><div class="drop-zone" data-drop-input="photoInput" data-drop-action="addPhotos"><input type="file" id="photoInput" accept="image/*" multiple><span class="drop-hint"><b>Arraste imagens para cá</b><br>ou clique para selecionar</span></div><input type="date" id="photoDate"><input id="photoCaption" placeholder="Legenda da atualização"><button class="primary" id="addPhotos">Adicionar imagens</button></div><div class="gallery" id="photoGallery"></div></div><div class="tab-content" id="tab-videos"><div class="toolbar"><div class="drop-zone" data-drop-input="videoInput" data-drop-action="addVideos"><input type="file" id="videoInput" accept="video/*" multiple><span class="drop-hint"><b>Arraste vídeos para cá</b><br>ou clique para selecionar</span></div><input type="date" id="videoDate"><input id="videoCaption" placeholder="Descrição do vídeo"><button class="primary" id="addVideos">Adicionar vídeos</button></div><div id="videoList" class="attachment-list"></div></div><div class="tab-content" id="tab-history"><div class="attention" id="taskHistory"></div></div><div class="toolbar" style="margin-top:18px"><span class="spacer"></span><button class="secondary" data-close>Cancelar</button><button class="primary" id="saveTaskModal">Salvar alterações</button></div></div></div></div>
+ </div><div class="tab-content" id="tab-documents"><div class="field full"><label>Anexar mapa de equalização / orçamento</label><div class="drop-zone" data-drop-input="mapFileInput" data-upload-handler="map"><input type="file" id="mapFileInput" accept=".pdf,.xlsx,.xls,.doc,.docx,image/*" multiple><span class="drop-hint"><b>Arraste mapa/orçamento para cá</b><br>ou clique para selecionar</span><button class="primary" id="addMapFiles" style="display:none" type="button">Anexar mapa/orçamento</button></div><div id="mapFileList" class="attachment-list"></div></div><div class="field full" style="margin-top:16px"><label>Demais arquivos do registro</label><div class="drop-zone" data-drop-input="docFileInput" data-upload-handler="doc"><input type="file" id="docFileInput" multiple><span class="drop-hint"><b>Arraste os arquivos para cá</b><br>ou clique para selecionar</span><button class="primary" id="addDocFiles" style="display:none" type="button">Anexar arquivos</button></div><div id="docFileList" class="attachment-list"></div></div></div><div class="tab-content" id="tab-images"><div class="toolbar"><div class="drop-zone" data-drop-input="photoInput" data-upload-handler="photo"><input type="file" id="photoInput" accept="image/*" multiple><span class="drop-hint"><b>Arraste imagens para cá</b><br>ou clique para selecionar</span></div><input type="date" id="photoDate"><input id="photoCaption" placeholder="Legenda da atualização"><button class="primary" id="addPhotos" style="display:none">Adicionar imagens</button></div><div class="gallery" id="photoGallery"></div></div><div class="tab-content" id="tab-videos"><div class="toolbar"><div class="drop-zone" data-drop-input="videoInput" data-upload-handler="video"><input type="file" id="videoInput" accept="video/*" multiple><span class="drop-hint"><b>Arraste vídeos para cá</b><br>ou clique para selecionar</span></div><input type="date" id="videoDate"><input id="videoCaption" placeholder="Descrição do vídeo"><button class="primary" id="addVideos" style="display:none">Adicionar vídeos</button></div><div id="videoList" class="attachment-list"></div></div><div class="tab-content" id="tab-history"><div class="attention" id="taskHistory"></div></div><div class="toolbar" style="margin-top:18px"><span class="spacer"></span><button class="secondary" data-close>Cancelar</button><button class="primary" id="saveTaskModal">Salvar alterações</button></div></div></div></div>
 <div class="modal" id="metricModal"><div class="dialog"><div class="dialog-head"><h3 id="metricModalTitle">Composição do indicador</h3><button class="icon-btn" id="closeMetricModal">✕</button></div><div class="dialog-body"><p id="metricModalDescription" style="color:var(--muted);margin-top:0"></p><div class="table-card"><div class="table-wrap"><table style="min-width:900px"><thead><tr><th>Natureza</th><th>Etapa</th><th>Tarefa</th><th>Valor</th></tr></thead><tbody id="metricDetailBody"></tbody></table></div></div><div class="toolbar"><span class="spacer"></span><button class="secondary" id="closeMetricModal2">Fechar</button></div></div></div></div>
 <div class="modal approved-breakdown-overlay" id="approvedBreakdownModal">
 <div class="modal-card approved-breakdown-card">
@@ -1146,7 +1149,15 @@ function initAdditiveFileInputs(){
 }
 window.editAdditive=(i,k,v)=>{let t=modalTask();if(k==='value')v=parseMoney(v);t.additiveRecords[i][k]=v;t.additives=additiveTotal(t);$('#taskModal').dataset.temp=JSON.stringify(t);renderAdditives(t)};
 window.removeAdditive=i=>{let t=modalTask(),a=t.additiveRecords?.[i];if(!a)return;if(!confirm(`Excluir o aditivo "${a.name||'Aditivo'}"?`))return;t.additiveRecords.splice(i,1);t.additives=additiveTotal(t);$('#taskModal').dataset.temp=JSON.stringify(t);renderAdditives(t)};
-window.attachAdditiveFiles=i=>{let input=$(`#additiveFile_${i}`);uploadFilesToTemp(input?.files||[],`tarefas/${editingId||'nova'}/aditivos`,async uploaded=>{let t=modalTask();t.additiveRecords[i].files=t.additiveRecords[i].files||[];t.additiveRecords[i].files.push(...uploaded);$('#taskModal').dataset.temp=JSON.stringify(t);renderAdditives(t);toast('Documento do aditivo salvo no Supabase')})};
+const additiveUploadInProgress={};
+window.attachAdditiveFiles=async i=>{
+ if(additiveUploadInProgress[i])return;
+ let input=$(`#additiveFile_${i}`),files=[...(input?.files||[])];if(!files.length)return;
+ additiveUploadInProgress[i]=true;
+ try{
+  await uploadFilesToTemp(files,`tarefas/${editingId||'nova'}/aditivos`,async uploaded=>{let t=modalTask();t.additiveRecords[i].files=t.additiveRecords[i].files||[];t.additiveRecords[i].files.push(...uploaded);$('#taskModal').dataset.temp=JSON.stringify(t);input.value='';renderAdditives(t);toast('Documento do aditivo salvo no Supabase')});
+ }finally{additiveUploadInProgress[i]=false}
+};
 window.openAdditiveFile=(i,j)=>openCCGEAttachment(modalTask().additiveRecords?.[i]?.files?.[j]);
 window.removeAdditiveFile=async(i,j)=>{let t=modalTask(),f=t.additiveRecords?.[i]?.files?.[j];await deleteCCGEAttachment(f);t.additiveRecords?.[i]?.files?.splice(j,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderAdditives(t)};
 function renderMilestones(t){
@@ -1203,7 +1214,15 @@ function renderMapFiles(t){
  prepareAttachmentLinks('map');
 }
 window.removeMapFile=async i=>{let t=modalTask();t.mapFiles=t.mapFiles||[];await deleteCCGEAttachment(t.mapFiles[i]);t.mapFiles.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderMapFiles(t)};
-async function submitMapFiles(){return uploadFilesToTemp($('#mapFileInput').files,`tarefas/${editingId||'nova'}/mapas`,async uploaded=>{let t=modalTask();t.mapFiles=t.mapFiles||[];t.mapFiles.push(...uploaded);$('#taskModal').dataset.temp=JSON.stringify(t);renderMapFiles(t);$('#mapFileInput').value='';toast('Mapa/orçamento salvo no Supabase')})}
+let mapUploadInProgress=false;
+async function submitMapFiles(){
+ if(mapUploadInProgress)return;
+ const input=$('#mapFileInput'),files=[...(input?.files||[])];if(!files.length)return;
+ mapUploadInProgress=true;
+ try{
+  await uploadFilesToTemp(files,`tarefas/${editingId||'nova'}/mapas`,async uploaded=>{let t=modalTask();t.mapFiles=t.mapFiles||[];t.mapFiles.push(...uploaded);$('#taskModal').dataset.temp=JSON.stringify(t);renderMapFiles(t);input.value='';toast('Mapa/orçamento salvo no Supabase')});
+ }finally{mapUploadInProgress=false}
+}
 $('#addMapFiles').onclick=submitMapFiles;
 $('#mapFileInput').addEventListener('change',submitMapFiles);
 function renderDocFiles(t){
@@ -1212,16 +1231,68 @@ function renderDocFiles(t){
  prepareAttachmentLinks('doc');
 }
 window.removeDocFile=async i=>{let t=modalTask();t.documents=t.documents||[];let f=t.documents[i];await deleteCCGEAttachment(f);t.documents.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderDocFiles(t)};
-async function submitDocFiles(){return uploadFilesToTemp($('#docFileInput').files,`tarefas/${editingId||'nova'}/documentos`,async uploaded=>{let t=modalTask();t.documents=t.documents||[];t.documents.push(...uploaded);$('#taskModal').dataset.temp=JSON.stringify(t);renderDocFiles(t);$('#docFileInput').value='';toast('Arquivo(s) salvo(s) no Supabase')})}
+let docUploadInProgress=false;
+async function submitDocFiles(){
+ if(docUploadInProgress)return;
+ const input=$('#docFileInput'),files=[...(input?.files||[])];if(!files.length)return;
+ docUploadInProgress=true;
+ try{
+  await uploadFilesToTemp(files,`tarefas/${editingId||'nova'}/documentos`,async uploaded=>{let t=modalTask();t.documents=t.documents||[];t.documents.push(...uploaded);$('#taskModal').dataset.temp=JSON.stringify(t);renderDocFiles(t);input.value='';toast('Arquivo(s) salvo(s) no Supabase')});
+ }finally{docUploadInProgress=false}
+}
 $('#addDocFiles').onclick=submitDocFiles;
 $('#docFileInput').addEventListener('change',submitDocFiles);
-function renderVideos(t){let files=t.videos||[];$('#videoList').innerHTML=files.length?files.map((f,i)=>`<div class="attachment-item"><span>🎥</span><div class="file-meta"><b>${esc(f.name)}</b><small>${esc(f.caption||'Sem descrição')} · ${dateBR(f.date)}</small></div><a href="${f.data}" download="${esc(f.name)}">Abrir</a><button type="button" onclick="removeVideo(${i})">Remover</button></div>`).join(''):'<div class="empty" style="padding:14px">Nenhum vídeo anexado.</div>'}
-window.removeVideo=i=>{let t=modalTask();t.videos=t.videos||[];t.videos.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderVideos(t)};
-$('#addVideos').onclick=()=>{let files=[...$('#videoInput').files];if(!files.length)return toast('Selecione ao menos um vídeo');let t=modalTask(),date=$('#videoDate').value||new Date().toISOString().slice(0,10),caption=$('#videoCaption').value;t.videos=t.videos||[];let pending=files.length;files.forEach(f=>{let r=new FileReader();r.onload=()=>{t.videos.push({name:f.name,type:f.type,size:f.size,data:r.result,addedAt:new Date().toISOString(),date,caption});if(!--pending){$('#taskModal').dataset.temp=JSON.stringify(t);renderVideos(t);$('#videoInput').value='';toast('Vídeos anexados')}};r.readAsDataURL(f)})};
-function renderPhotos(t){$('#photoGallery').innerHTML=t.photos?.length?t.photos.map((p,i)=>`<div class="photo"><img src="${p.src}"><p>${dateBR(p.date)} · ${esc(p.caption||'Sem legenda')}</p><button class="danger" style="margin:0 8px 8px" onclick="removePhoto(${i})">Remover</button></div>`).join(''):'<div class="empty" style="grid-column:1/-1">Nenhuma imagem adicionada.</div>'}
+function renderVideos(t){
+ let files=t.videos||[];
+ $('#videoList').innerHTML=files.length?files.map((f,i)=>`<div class="attachment-item"><span>🎥</span><div class="file-meta"><a class="file-link video-storage-link" data-index="${i}" target="_blank" rel="noopener">${esc(f.name||'Vídeo')}</a><small>${esc(f.caption||'Sem descrição')} · ${dateBR(f.date)} · ${formatBytes(f.size)}</small></div><button type="button" class="attachment-open" onclick="openVideoAttachment(${i})">Abrir</button><button type="button" class="attachment-remove" onclick="removeVideo(${i})">Remover</button></div>`).join(''):'<div class="empty" style="padding:14px">Nenhum vídeo anexado.</div>';
+ prepareVideoLinks();
+}
+async function videoUrl(f){return signedAttachmentUrl(f)}
+async function prepareVideoLinks(){
+ for(const a of document.querySelectorAll('.video-storage-link')){const i=Number(a.dataset.index),f=modalTask().videos?.[i];try{a.href=await videoUrl(f)}catch(err){a.removeAttribute('href');console.error(err)}}
+}
+window.openVideoAttachment=async i=>{const tab=window.open('about:blank','_blank');try{const url=await videoUrl(modalTask().videos?.[i]);if(tab)tab.location.replace(url);else toast('O navegador bloqueou a nova aba. Clique no nome do vídeo.')}catch(err){if(tab)tab.close();console.error(err);toast(`Não foi possível abrir o vídeo: ${err.message||'erro desconhecido'}`)}};
+window.removeVideo=async i=>{let t=modalTask();t.videos=t.videos||[];await deleteCCGEAttachment(t.videos[i]);t.videos.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderVideos(t)};
+let videoUploadInProgress=false;
+async function submitVideos(){
+ if(videoUploadInProgress)return;
+ const input=$('#videoInput'),files=[...(input?.files||[])];if(!files.length)return;
+ videoUploadInProgress=true;
+ try{
+  const date=$('#videoDate').value||new Date().toISOString().slice(0,10),caption=$('#videoCaption').value;
+  await uploadFilesToTemp(files,`tarefas/${editingId||'nova'}/videos`,async uploaded=>{let t=modalTask();t.videos=t.videos||[];t.videos.push(...uploaded.map(x=>({...x,date,caption})));$('#taskModal').dataset.temp=JSON.stringify(t);input.value='';renderVideos(t);toast('Vídeo(s) salvo(s) no Supabase')});
+ }finally{videoUploadInProgress=false}
+}
+$('#addVideos').onclick=submitVideos;
+$('#videoInput').addEventListener('change',submitVideos);
+function renderPhotos(t){
+ const photos=t.photos||[];
+ $('#photoGallery').innerHTML=photos.length?photos.map((p,i)=>`<div class="photo"><img class="photo-storage-preview" data-index="${i}" alt="${esc(p.caption||p.name||'Imagem')}"><p>${dateBR(p.date)} · ${esc(p.caption||'Sem legenda')}</p><button class="attachment-remove" style="margin:0 8px 8px" onclick="removePhoto(${i})">Remover</button></div>`).join(''):'<div class="empty" style="grid-column:1/-1">Nenhuma imagem adicionada.</div>';
+ preparePhotoPreviews();
+}
+async function photoUrl(p){
+ if(p?.storagePath)return signedAttachmentUrl(p);
+ if(typeof p?.src==='string'&&p.src.startsWith('data:'))return p.src;
+ if(typeof p?.data==='string'&&p.data.startsWith('data:'))return p.data;
+ throw new Error('Imagem indisponível.');
+}
+async function preparePhotoPreviews(){
+ for(const img of document.querySelectorAll('.photo-storage-preview')){const i=Number(img.dataset.index);try{img.src=await photoUrl(modalTask().photos?.[i])}catch(err){console.error(err);img.alt='Imagem indisponível'}}
+}
+window.removePhoto=async i=>{let t=modalTask();t.photos=t.photos||[];await deleteCCGEAttachment(t.photos[i]);t.photos.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderPhotos(t)};
+let photoUploadInProgress=false;
+async function submitPhotos(){
+ if(photoUploadInProgress)return;
+ const input=$('#photoInput'),files=[...(input?.files||[])];if(!files.length)return;
+ photoUploadInProgress=true;
+ try{
+   const date=$('#photoDate').value||new Date().toISOString().slice(0,10),caption=$('#photoCaption').value;
+   await uploadFilesToTemp(files,`tarefas/${editingId||'nova'}/imagens`,async uploaded=>{let t=modalTask();t.photos=t.photos||[];t.photos.push(...uploaded.map(x=>({...x,date,caption})));$('#taskModal').dataset.temp=JSON.stringify(t);input.value='';renderPhotos(t);toast('Imagem(ns) salva(s) no Supabase')});
+ }finally{photoUploadInProgress=false}
+}
+$('#addPhotos').onclick=submitPhotos;
+$('#photoInput').addEventListener('change',submitPhotos);
 function renderTaskHistory(t){$('#taskHistory').innerHTML=(t.history||[]).length?t.history.map(h=>`<div class="attention-item"><i class="dot blue"></i><div><b>${esc(h.text)}</b><small>${new Date(h.date).toLocaleString('pt-BR')}</small></div></div>`).join(''):'<div class="empty">Sem histórico nesta tarefa.</div>'}
-window.removePhoto=i=>{let t=modalTask();t.photos.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderPhotos(t)};
-$('#addPhotos').onclick=()=>{let files=[...$('#photoInput').files];if(!files.length)return toast('Selecione imagens');let t=modalTask(),date=$('#photoDate').value||new Date().toISOString().slice(0,10),cap=$('#photoCaption').value;let pending=files.length;files.forEach(f=>{let r=new FileReader();r.onload=()=>{t.photos.push({src:r.result,date,caption:cap});if(!--pending){$('#taskModal').dataset.temp=JSON.stringify(t);renderPhotos(t);toast('Imagens adicionadas')}};r.readAsDataURL(f)})};
 $('#saveTaskModal').onclick=()=>{let t=normalizeTaskName(modalTask());let old=editingId&&state.tasks.find(x=>x.id===editingId);let temp=JSON.parse($('#taskModal').dataset.temp);t.photos=temp.photos||[];t.mapFiles=temp.mapFiles||[];t.documents=temp.documents||[];t.videos=temp.videos||[];t.invoices=temp.invoices||[];t.deliverables=temp.deliverables||[];t.payments=temp.payments||[];t.milestones=temp.milestones||[];t.additiveRecords=temp.additiveRecords||[];t.additives=additiveTotal(t);t.paid=(t.payments||[]).reduce((sum,p)=>sum+Number(p.paidAmount||0),0);t.invoiced=Math.max(Number(t.invoiced||0),(t.invoices||[]).reduce((sum,i)=>sum+Number(i.amount||0),0));t.history=old?.history||[];t.history.unshift({date:new Date().toISOString(),text:old?'Informações da tarefa atualizadas':'Tarefa criada'});if(old)Object.assign(old,t);else state.tasks.push(t);save(old?`Tarefa atualizada: ${taskDisplayName(t)}`:`Nova tarefa: ${taskDisplayName(t)}`);closeModal();renderAll()};
 function closeModal(){$('#taskModal').classList.remove('open')}$$('[data-close]').forEach(b=>b.onclick=closeModal);$$('.tabs button').forEach(b=>b.onclick=()=>{$$('.tabs button').forEach(x=>x.classList.remove('active'));$$('.tab-content').forEach(x=>x.classList.remove('active'));b.classList.add('active');$('#tab-'+b.dataset.tab).classList.add('active')});
 function projectNextDue(t){let dates=(t.invoices||[]).filter(x=>x.status!=='Paga'&&x.dueDate).map(x=>x.dueDate).sort();return dates[0]||''}
@@ -1253,11 +1324,34 @@ function renderMonthly(){
 function renderMonthlyAttachment(c){
  const box=$('#mcAttachmentCurrent');if(!box)return;
  const a=c.attachment;
- box.innerHTML=a&&a.name?`<div class="attachment-chip"><span>📎 <b>${esc(a.name)}</b> <small>${a.size?Math.round(a.size/1024)+' KB':''}</small></span><span><button type="button" onclick="viewMonthlyAttachment()">Abrir</button> <button type="button" class="danger" onclick="removeMonthlyAttachment()">Excluir</button></span></div>`:'<small>Nenhum documento anexado.</small>';
+ box.innerHTML=a&&a.name?`<div class="attachment-item"><span>📎</span><div class="file-meta"><a class="file-link monthly-storage-link" target="_blank" rel="noopener">${esc(a.name)}</a><small>${formatBytes(a.size)} · ${attachmentDate(a)}</small></div><button type="button" class="attachment-open" onclick="viewMonthlyAttachment()">Abrir</button><button type="button" class="attachment-remove" onclick="removeMonthlyAttachment()">Excluir</button></div>`:'<small>Nenhum documento anexado.</small>';
+ prepareMonthlyAttachmentLink();
 }
-window.viewMonthlyAttachment=()=>{let c=monthlyFromModal();if(c.attachment?.data){const w=window.open();if(w)w.location.href=c.attachment.data}else toast('Documento não disponível.')};
+async function prepareMonthlyAttachmentLink(){
+ const a=document.querySelector('.monthly-storage-link');if(!a)return;
+ try{a.href=await signedAttachmentUrl(monthlyFromModal().attachment);a.dataset.ready='1'}catch(err){a.removeAttribute('href');a.dataset.ready='0';console.error(err)}
+}
+window.viewMonthlyAttachment=async()=>{
+ const tab=window.open('about:blank','_blank');
+ try{const url=await signedAttachmentUrl(monthlyFromModal().attachment);if(tab)tab.location.replace(url);else toast('O navegador bloqueou a nova aba. Clique no nome do arquivo.')}
+ catch(err){if(tab)tab.close();console.error(err);toast(`Não foi possível abrir o documento: ${err.message||'erro desconhecido'}`)}
+};
 window.removeMonthlyAttachment=async()=>{let c=monthlyFromModal();await deleteCCGEAttachment(c.attachment);c.attachment=null;$('#monthlyModal').dataset.temp=JSON.stringify(c);$('#mcAttachment').value='';renderMonthlyAttachment(c)};
 async function readMonthlyAttachment(file){return await uploadCCGEFile(file,`contratos-mensais/${editingMonthlyId||'novo'}`)}
+let monthlyUploadInProgress=false;
+async function submitMonthlyAttachment(){
+ if(monthlyUploadInProgress)return;
+ const input=$('#mcAttachment'),file=input?.files?.[0];if(!file)return;
+ monthlyUploadInProgress=true;
+ try{
+   let c=monthlyFromModal();
+   if(c.attachment?.storagePath)await deleteCCGEAttachment(c.attachment);
+   c.attachment=await readMonthlyAttachment(file);
+   $('#monthlyModal').dataset.temp=JSON.stringify(c);input.value='';renderMonthlyAttachment(c);
+   toast('Documento salvo no Supabase. Salve o contrato para concluir.');
+ }catch(err){console.error(err);toast(`Não foi possível anexar o documento: ${err.message||'erro desconhecido'}`)}
+ finally{monthlyUploadInProgress=false}
+}
 
 function openMonthly(id){
  editingMonthlyId=id||null;
@@ -1386,7 +1480,7 @@ $('#supplierModal').onclick=e=>{if(e.target.id==='supplierModal')$('#supplierMod
 $('#saveSupplier').onclick=()=>{let sup=supplierFromModal();if(!sup.name){toast('Informe o nome do fornecedor.');return}if(editingSupplierId){const i=state.suppliers.findIndex(x=>x.id===editingSupplierId);state.suppliers[i]=sup}else state.suppliers.push(sup);save(editingSupplierId?'Fornecedor atualizado':'Fornecedor criado');$('#supplierModal').classList.remove('open');renderAll()};
 $('#addSupplierContact').onclick=()=>{let sup=supplierFromModal(),date=prompt('Data do contato (AAAA-MM-DD):',new Date().toISOString().slice(0,10));if(!date)return;let area=prompt('Área do contato (Comercial/Financeiro/Outro):','Financeiro')||'Financeiro',channel=prompt('Meio (Telefone/E-mail/WhatsApp/Reunião):','Telefone')||'',contact=prompt('Pessoa contatada:',sup.financial?.name||sup.commercial?.name||'')||'',subject=prompt('Assunto / resumo curto:','')||'',notes=prompt('O que ficou alinhado:','')||'',nextAction=prompt('Próxima ação:','')||'',nextDate=nextAction?(prompt('Data da próxima ação (AAAA-MM-DD):','')||''):'';sup.contacts=sup.contacts||[];sup.contacts.push({id:uid('ct'),date,area,channel,contact,subject,notes,nextAction,nextDate,createdAt:new Date().toISOString()});$('#supplierModal').dataset.temp=JSON.stringify(sup);renderSupplierContactHistory(sup)};
 $('#supplierSearch').oninput=renderSuppliers;$('#supplierStatusFilter').onchange=renderSuppliers;$('#agendaWindow').onchange=renderAgenda;$('#agendaSearch').oninput=renderAgenda;$('#cashflowHorizon').onchange=renderFinancial;
-$('#mcAttachment').onchange=async e=>{const file=e.target.files?.[0];if(!file)return;if(file.size>5*1024*1024){toast('Para segurança, use arquivo de até 5 MB.');e.target.value='';return}try{let c=monthlyFromModal();c.attachment=await readMonthlyAttachment(file);$('#monthlyModal').dataset.temp=JSON.stringify(c);renderMonthlyAttachment(c);toast('Documento anexado. Salve o contrato para concluir.')}catch(err){toast('Não foi possível ler o documento.')}};
+$('#mcAttachment').onchange=submitMonthlyAttachment;
 $('#newMonthlyContract').onclick=()=>openMonthly(null);
 $('#closeMonthly').onclick=$('#cancelMonthly').onclick=()=>$('#monthlyModal').classList.remove('open');
 $('#saveMonthly').onclick=()=>{let c=monthlyFromModal();if(!c.name){toast('Informe o nome do contrato/serviço.');return}if(editingMonthlyId){const i=state.monthlyContracts.findIndex(x=>x.id===editingMonthlyId);state.monthlyContracts[i]=c}else state.monthlyContracts.push(c);save(editingMonthlyId?'Contrato mensal atualizado':'Contrato mensal criado');$('#monthlyModal').classList.remove('open');renderAll()};
@@ -1431,11 +1525,19 @@ function initDropZones(root=document){
    if(!input)return;
    ['dragenter','dragover'].forEach(ev=>zone.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();zone.classList.add('dragover')}));
    ['dragleave','drop'].forEach(ev=>zone.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();zone.classList.remove('dragover')}));
-   zone.addEventListener('drop',e=>{
-     const files=[...(e.dataTransfer?.files||[])];if(!files.length)return;
-     try{const dt=new DataTransfer();files.forEach(f=>dt.items.add(f));input.files=dt.files}catch(err){toast('Seu navegador não permitiu preparar os arquivos arrastados. Use o seletor de arquivos.');return}
+   zone.addEventListener('drop',async e=>{
+     const files=[...(e.dataTransfer?.files||[])];
+     if(!files.length){toast('Nenhum arquivo válido foi recebido. Se estiver arrastando diretamente de um e-mail, salve o anexo no computador e tente novamente.');return}
+     try{const dt=new DataTransfer();files.forEach(f=>dt.items.add(f));input.files=dt.files}
+     catch(err){console.error(err);toast('O navegador não permitiu preparar o arquivo arrastado. Use "Escolher ficheiros".');return}
+     const handler=zone.dataset.uploadHandler;
+     if(handler==='map'){await submitMapFiles();return}
+     if(handler==='doc'){await submitDocFiles();return}
+     if(handler==='monthly'){await submitMonthlyAttachment();return}
+     if(handler==='photo'){await submitPhotos();return}
+     if(handler==='video'){await submitVideos();return}
+     if(zone.dataset.additiveIndex!==undefined&&typeof window.attachAdditiveFiles==='function'){await window.attachAdditiveFiles(Number(zone.dataset.additiveIndex));return}
      input.dispatchEvent(new Event('change',{bubbles:true}));
-     if(zone.dataset.additiveIndex!==undefined&&typeof window.attachAdditiveFiles==='function')window.attachAdditiveFiles(Number(zone.dataset.additiveIndex));
    });
    zone.addEventListener('click',e=>{if(e.target===zone||e.target.classList.contains('drop-hint'))input.click()});
  });
