@@ -277,6 +277,18 @@
 
 .file-meta .monthly-storage-link,.file-meta .video-storage-link{display:inline!important;width:auto!important;max-width:100%;font-size:14px!important;font-weight:500!important;color:var(--blue)!important;border:0!important;text-decoration:none!important;cursor:pointer}
 .file-meta .monthly-storage-link:hover,.file-meta .video-storage-link:hover{text-decoration:underline!important;text-decoration-thickness:1px!important;text-underline-offset:2px!important}
+
+/* v1.29 — Etapas como accordion gerencial */
+.phase-head{align-items:flex-start!important}
+.phase-chevron{flex:0 0 34px;width:34px;height:34px;margin:2px 0 0 2px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--navy);font-size:14px;font-weight:800;cursor:pointer}
+.phase-chevron:hover{background:var(--soft)}
+.phase-task-body[hidden]{display:none!important}
+.phase-collapsed{margin-bottom:10px}
+.phase-collapsed .phase-head{border-bottom:0!important}
+.phase-alert{display:inline-flex;align-items:center;gap:3px;padding:3px 7px;border-radius:999px;font-size:12px;font-weight:650}
+.phase-alert-late{color:#9b2c2c;background:#fff1f1}
+.phase-alert-blocked,.phase-alert-critical{color:#8a3d00;background:#fff5e8}
+.phase-toggle-all{padding:8px 11px!important;white-space:nowrap}
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -383,7 +395,7 @@ async function carregarEstadoNuvem() {
 </form></div>
 <div class="app">
 <aside class="sidebar">
- <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.28</small></div></div>
+ <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.29</small></div></div>
  <nav class="nav" id="nav">
   <button class="active" data-page="home">⌂ <span class="label">Centro de Comando</span></button>
   <button data-page="structure" data-context="work">◫ <span class="label">Etapas</span></button>
@@ -427,7 +439,7 @@ async function carregarEstadoNuvem() {
 <option value="current">Ordem atual</option><option value="phase-az">Etapas A–Z</option><option value="phase-za">Etapas Z–A</option>
 <option value="name-az">Tarefas A–Z</option><option value="name-za">Tarefas Z–A</option><option value="status">Status</option>
 <option value="progress-desc">% execução ↓</option><option value="progress-asc">% execução ↑</option><option value="priority">Prioridade</option>
-<option value="start">Data início</option><option value="end">Data fim</option></select><select id="phaseViewFilter"><option value="active">Ativas</option><option value="archived">Arquivadas</option><option value="all">Todas</option></select><span class="spacer"></span></div>
+<option value="start">Data início</option><option value="end">Data fim</option></select><select id="phaseViewFilter"><option value="active">Ativas</option><option value="archived">Arquivadas</option><option value="all">Todas</option></select><span class="spacer"></span><button class="secondary phase-toggle-all" id="collapseAllPhases">Recolher todas</button><button class="secondary phase-toggle-all" id="expandAllPhases">Expandir todas</button></div>
    <div class="analysis-selection-bar" id="structureSelectionBar"><div class="selection-summary"><b id="structureSelectedCount">0 tarefas incluídas</b><small>Selecione tarefas ou etapas e gere gráficos na Central de Inteligência.</small></div><span class="spacer"></span><button class="secondary" id="structureClearSelection">Limpar seleção</button><button class="primary" id="structureGenerateAnalysis">Configurar e gerar gráficos</button></div>
    <div class="hierarchy" id="hierarchy"></div>
   </section>
@@ -992,24 +1004,46 @@ function openSelectedAnalysis(){
  $('#builderGroup').value=$('#chartGroup').value||'task';
  $('#analysisBuilderModal').classList.add('open');
 }
+const collapsedPhases=new Set();
+let phasesInitialized=false;
+function phaseProblemSummary(activeTasks){
+ const late=activeTasks.filter(t=>t.endPlan&&new Date(t.endPlan+'T23:59:59')<new Date()&&t.status!=='Concluída').length;
+ const blocked=activeTasks.filter(t=>t.blocked).length;
+ const critical=activeTasks.filter(t=>(t.priority||'').toLowerCase()==='crítica'||(t.priority||'').toLowerCase()==='critica').length;
+ return {late,blocked,critical};
+}
+window.togglePhaseCollapse=id=>{
+ if(collapsedPhases.has(id))collapsedPhases.delete(id);else collapsedPhases.add(id);
+ renderHierarchy();
+};
+window.collapseAllPhases=()=>{state.phases.forEach(f=>collapsedPhases.add(f.id));renderHierarchy()};
+window.expandAllPhases=()=>{collapsedPhases.clear();renderHierarchy()};
 function renderHierarchy(){
  const q=($('#structureSearch').value||'').toLowerCase();
  const view=$('#phaseViewFilter')?.value||'active';
  let phases=state.phases.filter(f=>view==='all'||(view==='archived'?f.archived:!f.archived));const hierarchySort=$('#structureSort')?.value||'current';if(hierarchySort==='phase-az')phases=[...phases].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR',{sensitivity:'base'}));if(hierarchySort==='phase-za')phases=[...phases].sort((a,b)=>b.name.localeCompare(a.name,'pt-BR',{sensitivity:'base'}));
+ if(!phasesInitialized){phases.forEach(f=>collapsedPhases.add(f.id));phasesInitialized=true}
  $('#hierarchy').innerHTML=phases.filter(f=>{
    if(!q)return true;
    return f.name.toLowerCase().includes(q)||state.tasks.some(t=>context(t).f.id===f.id&&taskDisplayName(t).toLowerCase().includes(q));
  }).map(f=>{
    let tasks=state.tasks.filter(t=>context(t).f.id===f.id&&(view==='archived'?t.archived:true)).filter(t=>view==='all'||(view==='archived'?t.archived:!t.archived));if(!hierarchySort.startsWith('phase-'))tasks=sortTaskArray(tasks,hierarchySort);
-   const activeTasks=tasks.filter(t=>!t.archived), done=activeTasks.filter(t=>t.status==='Concluída').length, late=activeTasks.filter(t=>t.endPlan&&new Date(t.endPlan+'T23:59:59')<new Date()&&t.status!=='Concluída').length, blocked=activeTasks.filter(t=>t.blocked).length;
+   const activeTasks=tasks.filter(t=>!t.archived), done=activeTasks.filter(t=>t.status==='Concluída').length;
+   const {late,blocked,critical}=phaseProblemSummary(activeTasks);
    const ids=activeTasks.map(t=>t.id), allSel=ids.length&&ids.every(id=>state.selected.includes(id)), someSel=ids.some(id=>state.selected.includes(id));
-   return `<div class="phase ${f.archived?'archived':''}" id="phase-${f.id}">
-    <div class="phase-head"><div class="phase-title-wrap"><input type="text" value="${esc(f.name)}" onchange="renamePhase('${f.id}',this.value)" aria-label="Nome da etapa" ${f.archived?'disabled':''}>
+   const forcedOpen=!!q,collapsed=!forcedOpen&&collapsedPhases.has(f.id);
+   const alerts=[late?`<span class="phase-alert phase-alert-late"><b>${late}</b> atrasada${late===1?'':'s'}</span>`:'',blocked?`<span class="phase-alert phase-alert-blocked"><b>${blocked}</b> bloqueada${blocked===1?'':'s'}</span>`:'',critical?`<span class="phase-alert phase-alert-critical"><b>${critical}</b> crítica${critical===1?'':'s'}</span>`:''].filter(Boolean).join('');
+   return `<div class="phase ${f.archived?'archived':''} ${collapsed?'phase-collapsed':''}" id="phase-${f.id}">
+    <div class="phase-head">
+      <button type="button" class="phase-chevron" onclick="togglePhaseCollapse('${f.id}')" aria-label="${collapsed?'Expandir':'Recolher'} etapa" aria-expanded="${!collapsed}">${collapsed?'▶':'▼'}</button>
+      <div class="phase-title-wrap"><input type="text" value="${esc(f.name)}" onchange="renamePhase('${f.id}',this.value)" aria-label="Nome da etapa" ${f.archived?'disabled':''}>
       ${!f.archived?`<label class="phase-analysis-control"><input type="checkbox" ${allSel?'checked':''} ${someSel&&!allSel?'data-partial="true"':''} onchange="togglePhaseSelection('${f.id}',this.checked)"> Incluir na análise</label>`:''}
-      <div class="phase-summary"><span><b>${activeTasks.length}</b> tarefas</span><span class="phase-progress"><b>${phaseExecution(f.id)}%</b><span class="phase-progress-bar"><i style="width:${phaseExecution(f.id)}%"></i></span><em>execução</em></span><span><b>${done}</b> concluídas</span><span class="${late?'priority-high':''}"><b>${late}</b> atrasadas</span><span class="${blocked?'priority-critical':''}"><b>${blocked}</b> bloqueadas</span></div>
+      <div class="phase-summary"><span><b>${activeTasks.length}</b> tarefas</span><span class="phase-progress"><b>${phaseExecution(f.id)}%</b><span class="phase-progress-bar"><i style="width:${phaseExecution(f.id)}%"></i></span><em>execução</em></span><span><b>${done}</b> concluídas</span>${alerts}</div>
     </div><div class="object-actions">${!f.archived?`<button class="object-primary" onclick="openNewTaskForPhase('${f.id}')">+ Tarefa</button>`:''}${actionMenu('phase',f.id,f.archived)}</div></div>
+    <div class="phase-task-body" ${collapsed?'hidden':''}>
     ${tasks.length?`<div class="task-list"><div class="task-list-head"><span>Tarefa</span><span>Status</span><span>Prioridade</span><span>% execução</span><span>Ações</span></div>
     ${tasks.map(t=>`<div class="task-list-row"><div><div class="task-name" onclick="openTask('${t.id}')">${esc(taskDisplayName(t))}</div><div class="task-context">${esc(t.owner||t.company||'Sem responsável')} · ${dateBR(t.startPlan)} a ${dateBR(t.endPlan)}${t.blocked?' · BLOQUEADA':''}</div></div><div>${badge(t.status)}</div><div>${esc(t.priority||'Normal')}</div><div><b>${Number(t.real)||0}%</b></div><div>${!t.archived?`<label class="selection-control"><input type="checkbox" ${state.selected.includes(t.id)?'checked':''} onchange="toggleSelected('${t.id}',this.checked)"> Análise</label>`:''}${actionMenu('task',t.id,t.archived)}</div></div>`).join('')}</div>`:'<div class="empty" style="margin:10px 12px 12px;padding:16px">Nenhuma tarefa nesta etapa.</div>'}
+    </div>
    </div>`;
  }).join('')||'<div class="empty">Nenhuma etapa encontrada nesta visão.</div>';
  $$('#hierarchy .phase-analysis-control input[data-partial="true"]').forEach(x=>x.indeterminate=true);
@@ -1485,7 +1519,7 @@ $('#newMonthlyContract').onclick=()=>openMonthly(null);
 $('#closeMonthly').onclick=$('#cancelMonthly').onclick=()=>$('#monthlyModal').classList.remove('open');
 $('#saveMonthly').onclick=()=>{let c=monthlyFromModal();if(!c.name){toast('Informe o nome do contrato/serviço.');return}if(editingMonthlyId){const i=state.monthlyContracts.findIndex(x=>x.id===editingMonthlyId);state.monthlyContracts[i]=c}else state.monthlyContracts.push(c);save(editingMonthlyId?'Contrato mensal atualizado':'Contrato mensal criado');$('#monthlyModal').classList.remove('open');renderAll()};
 $('#monthlySearch').oninput=renderMonthly;$('#monthlyStatusFilter').onchange=renderMonthly;
-$('#addPhase').onclick=addPhase;$('#quickPhase').onclick=addPhase;['#quickTask','#newTask'].forEach(s=>$(s).onclick=()=>openTask());$('#quickProject').onclick=()=>openTask(null,null,'Projeto');$('#addColumn').onclick=addColumn;$('#addColumn2').onclick=addColumn;$('#newProject').onclick=()=>openTask(null,null,'Projeto');['#taskSearch','#structureSearch','#projectSearch'].forEach(s=>$(s).oninput=renderAll);$('#documentSearch').oninput=renderDocuments;$('#documentTypeFilter').onchange=renderDocuments;$('#phaseViewFilter').onchange=renderHierarchy;$('#structureSort').onchange=renderHierarchy;$('#taskSort').onchange=renderTasks;['#projectStatusFilter','#projectCompanyFilter','#projectDeadlineFilter'].forEach(s=>$(s).onchange=renderProjects);$('#phaseFilter').onchange=renderTasks;$('#statusFilter').onchange=renderTasks;function applyContextUI(scope){
+$('#addPhase').onclick=addPhase;$('#collapseAllPhases').onclick=collapseAllPhases;$('#expandAllPhases').onclick=expandAllPhases;$('#quickPhase').onclick=addPhase;['#quickTask','#newTask'].forEach(s=>$(s).onclick=()=>openTask());$('#quickProject').onclick=()=>openTask(null,null,'Projeto');$('#addColumn').onclick=addColumn;$('#addColumn2').onclick=addColumn;$('#newProject').onclick=()=>openTask(null,null,'Projeto');['#taskSearch','#structureSearch','#projectSearch'].forEach(s=>$(s).oninput=renderAll);$('#documentSearch').oninput=renderDocuments;$('#documentTypeFilter').onchange=renderDocuments;$('#phaseViewFilter').onchange=renderHierarchy;$('#structureSort').onchange=renderHierarchy;$('#taskSort').onchange=renderTasks;['#projectStatusFilter','#projectCompanyFilter','#projectDeadlineFilter'].forEach(s=>$(s).onchange=renderProjects);$('#phaseFilter').onchange=renderTasks;$('#statusFilter').onchange=renderTasks;function applyContextUI(scope){
  const body=document.body, isWork=scope==='Obra', isProject=scope==='Projeto';
  body.classList.toggle('mode-work',isWork);body.classList.toggle('mode-project',isProject);
  $$('#nav [data-context]').forEach(b=>{const show=scope==='Todos'||(isWork&&b.dataset.context==='work')||(isProject&&b.dataset.context==='project');b.classList.toggle('context-hidden',!show)});
