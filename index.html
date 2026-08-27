@@ -353,7 +353,7 @@ const CCGE_STORAGE_BUCKET = "ccge-files";
 function safeFileName(name){return String(name||'arquivo').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9._-]+/g,'_').slice(-140)}
 
 function setLoginLoading(on){
- const btn=document.querySelector('#loginScreen button[type="submit"],#loginScreen button,.login-card button[type="submit"],.login-card button');
+ const btn=document.getElementById('loginSubmit')||document.querySelector('#authGate .auth-card button[type="submit"]');
  if(!btn)return;
  if(!btn.dataset.originalHtml)btn.dataset.originalHtml=btn.innerHTML;
  btn.disabled=on;btn.classList.toggle('login-busy',on);
@@ -455,7 +455,7 @@ async function carregarEstadoNuvem() {
 </form></div>
 <div class="app">
 <aside class="sidebar">
- <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.32</small></div></div>
+ <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.35</small></div></div>
  <nav class="nav" id="nav">
   <button class="active" data-page="home">⌂ <span class="label">Centro de Comando</span></button>
   <button data-page="structure" data-context="work">◫ <span class="label">Etapas</span></button>
