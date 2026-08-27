@@ -306,6 +306,21 @@
 .phase-title-wrap{display:flex!important;flex-direction:column!important;align-items:flex-start!important;gap:0!important;min-width:0;flex:1}
 .phase-summary{margin-top:7px!important;justify-content:flex-start!important;gap:12px!important;flex-wrap:wrap}
 .phase-summary .phase-analysis-control{margin-left:4px}
+
+/* v1.32 — cadastro financeiro individual */
+.payment-table-wrap{margin-top:14px;border:1px solid var(--line);border-radius:14px;overflow:auto;background:#fff}
+.payment-table{width:100%;min-width:820px;border-collapse:collapse}
+.payment-table th,.payment-table td{padding:11px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle;font-size:13px}
+.payment-table th{background:#f7f9fc;color:var(--muted);font-size:12px;font-weight:800}
+.payment-table tr:last-child td{border-bottom:0}
+.payment-actions{display:flex;gap:7px;white-space:nowrap}
+.payment-actions button{padding:7px 10px!important;font-size:12px!important}
+#paymentModal{z-index:10020}
+#paymentModal .dialog{max-width:860px}
+#paymentModal .form-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+#paymentModal .field.full{grid-column:1/-1}
+#paymentModal textarea{min-height:92px}
+@media(max-width:720px){#paymentModal .form-grid{grid-template-columns:1fr}.payment-table{min-width:720px}}
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -424,7 +439,7 @@ async function carregarEstadoNuvem() {
 </form></div>
 <div class="app">
 <aside class="sidebar">
- <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.30</small></div></div>
+ <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.32</small></div></div>
  <nav class="nav" id="nav">
   <button class="active" data-page="home">⌂ <span class="label">Centro de Comando</span></button>
   <button data-page="structure" data-context="work">◫ <span class="label">Etapas</span></button>
@@ -645,6 +660,20 @@ async function carregarEstadoNuvem() {
  <div class="subsection-head"><h4>Notas fiscais e boletos</h4><button class="secondary" type="button" id="addInvoice">+ Adicionar lançamento</button></div><div id="invoiceList" class="mini-list"></div>
  <div class="subsection-head"><h4>Entregáveis, revisões e aprovações</h4><button class="secondary" type="button" id="addDeliverable">+ Adicionar entregável</button></div><div id="deliverableList" class="mini-list"></div>
  </div><div class="tab-content" id="tab-documents"><div class="field full"><label>Anexar mapa de equalização / orçamento</label><div class="drop-zone" data-drop-input="mapFileInput" data-upload-handler="map"><input type="file" id="mapFileInput" accept=".pdf,.xlsx,.xls,.doc,.docx,image/*" multiple><span class="drop-hint"><b>Arraste mapa/orçamento para cá</b><br>ou clique para selecionar</span><button class="primary" id="addMapFiles" style="display:none" type="button">Anexar mapa/orçamento</button></div><div id="mapFileList" class="attachment-list"></div></div><div class="field full" style="margin-top:16px"><label>Demais arquivos do registro</label><div class="drop-zone" data-drop-input="docFileInput" data-upload-handler="doc"><input type="file" id="docFileInput" multiple><span class="drop-hint"><b>Arraste os arquivos para cá</b><br>ou clique para selecionar</span><button class="primary" id="addDocFiles" style="display:none" type="button">Anexar arquivos</button></div><div id="docFileList" class="attachment-list"></div></div></div><div class="tab-content" id="tab-images"><div class="toolbar"><div class="drop-zone" data-drop-input="photoInput" data-upload-handler="photo"><input type="file" id="photoInput" accept="image/*" multiple><span class="drop-hint"><b>Arraste imagens para cá</b><br>ou clique para selecionar</span></div><input type="date" min="1900-01-01" max="2100-12-31" id="photoDate"><input id="photoCaption" placeholder="Legenda da atualização"><button class="primary" id="addPhotos" style="display:none">Adicionar imagens</button></div><div class="gallery" id="photoGallery"></div></div><div class="tab-content" id="tab-videos"><div class="toolbar"><div class="drop-zone" data-drop-input="videoInput" data-upload-handler="video"><input type="file" id="videoInput" accept="video/*" multiple><span class="drop-hint"><b>Arraste vídeos para cá</b><br>ou clique para selecionar</span></div><input type="date" min="1900-01-01" max="2100-12-31" id="videoDate"><input id="videoCaption" placeholder="Descrição do vídeo"><button class="primary" id="addVideos" style="display:none">Adicionar vídeos</button></div><div id="videoList" class="attachment-list"></div></div><div class="tab-content" id="tab-history"><div class="attention" id="taskHistory"></div></div><div class="toolbar" style="margin-top:18px"><span class="spacer"></span><button class="secondary" data-close>Cancelar</button><button class="primary" id="saveTaskModal">Salvar alterações</button></div></div></div></div>
+
+<div class="modal" id="paymentModal"><div class="dialog"><div class="dialog-head"><div><h3 id="paymentModalTitle">Adicionar pagamento</h3><small style="color:var(--muted)">Cadastro financeiro do compromisso selecionado.</small></div><button class="icon-btn" id="closePaymentModal">✕</button></div><div class="dialog-body">
+ <div class="form-grid">
+  <div class="field full"><label>Descrição do pagamento</label><input id="payDescription"></div>
+  <div class="field"><label>Data prevista</label><input id="payDueDate" type="date" min="1900-01-01" max="2100-12-31"></div>
+  <div class="field"><label>Valor previsto</label><input id="payAmount" type="text" inputmode="decimal"></div>
+  <div class="field"><label>Data efetiva do pagamento</label><input id="payPaidDate" type="date" min="1900-01-01" max="2100-12-31"></div>
+  <div class="field"><label>Valor pago</label><input id="payPaidAmount" type="text" inputmode="decimal"></div>
+  <div class="field"><label>Status do pagamento</label><select id="payStatus"><option>Previsto</option><option>Aguardando documento</option><option>Aguardando aprovação</option><option>Aprovado</option><option>Pago</option><option>Vencido</option><option>Suspenso</option></select></div>
+  <div class="field"><label>NF / boleto / referência</label><input id="payDocumentRef"></div>
+  <div class="field full"><label>Observações financeiras</label><textarea id="payNotes"></textarea></div>
+ </div>
+ <div class="toolbar" style="margin-top:18px"><span class="spacer"></span><button class="secondary" id="cancelPaymentModal" type="button">Cancelar</button><button class="primary" id="savePaymentModal" type="button">Salvar pagamento</button></div>
+</div></div></div>
 <div class="modal" id="metricModal"><div class="dialog"><div class="dialog-head"><h3 id="metricModalTitle">Composição do indicador</h3><button class="icon-btn" id="closeMetricModal">✕</button></div><div class="dialog-body"><p id="metricModalDescription" style="color:var(--muted);margin-top:0"></p><div class="table-card"><div class="table-wrap"><table style="min-width:900px"><thead><tr><th>Natureza</th><th>Etapa</th><th>Tarefa</th><th>Valor</th></tr></thead><tbody id="metricDetailBody"></tbody></table></div></div><div class="toolbar"><span class="spacer"></span><button class="secondary" id="closeMetricModal2">Fechar</button></div></div></div></div>
 <div class="modal approved-breakdown-overlay" id="approvedBreakdownModal">
 <div class="modal-card approved-breakdown-card">
@@ -1151,8 +1180,7 @@ function modalTask(){
 
 function renderPayments(t){
  let a=t.payments||[];
- const field=(label,control)=>`<div class="field payment-field"><label>${label}</label>${control}</div>`;
- $('#paymentList').innerHTML=a.length?a.map((x,i)=>`<div class="mini-row payment-row" style="grid-template-columns:1.45fr 1.05fr 1fr 1fr 1.05fr 1.15fr 1.25fr auto;gap:12px;align-items:end">${field('Descrição',`<input value="${esc(x.description||'')}" onchange="editPayment(${i},'description',this.value)">`)}${field('Data prevista',`<input type="date" min="1900-01-01" max="2100-12-31" value="${esc(x.dueDate||'')}" onchange="if(validateCCGEDate(this))editPayment(${i},'dueDate',this.value)">`)}${field('Valor previsto',`<input type="text" inputmode="decimal" value="${esc(x.amount?brl(x.amount):'')}" onchange="editPayment(${i},'amount',this.value)">`)}${field('Valor pago',`<input type="text" inputmode="decimal" value="${esc(x.paidAmount?brl(x.paidAmount):'')}" onchange="editPayment(${i},'paidAmount',this.value)">`)}${field('Data pagamento',`<input type="date" min="1900-01-01" max="2100-12-31" value="${esc(x.paidDate||'')}" onchange="if(validateCCGEDate(this))editPayment(${i},'paidDate',this.value)">`)}${field('Status',`<select onchange="editPayment(${i},'status',this.value)">${['Previsto','Aguardando documento','Aguardando aprovação','Aprovado','Pago','Vencido','Suspenso'].map(v=>`<option ${x.status===v||((x.status==='Paga')&&v==='Pago')?'selected':''}>${v}</option>`).join('')}</select>`)}${field('NF / boleto',`<input value="${esc(x.documentRef||'')}" onchange="editPayment(${i},'documentRef',this.value)">`)}<div class="field payment-field"><label>Ação</label><button type="button" onclick="removePayment(${i})">Remover</button></div></div>`).join(''):'<div class="empty" style="padding:14px">Nenhum pagamento programado. Cadastre parcelas, medições ou compromissos futuros.</div>';
+ $('#paymentList').innerHTML=a.length?`<div class="payment-table-wrap"><table class="payment-table"><thead><tr><th>Descrição</th><th>Vencimento</th><th>Previsto</th><th>Pago</th><th>Status</th><th>Documento</th><th>Ações</th></tr></thead><tbody>${a.map((x,i)=>`<tr><td><b>${esc(x.description||'—')}</b></td><td>${x.dueDate?dateBR(x.dueDate):'—'}</td><td>${Number(x.amount||0)?brl(x.amount):'—'}</td><td>${Number(x.paidAmount||0)?brl(x.paidAmount):'—'}</td><td>${badge(x.status||'Previsto')}</td><td>${esc(x.documentRef||'—')}</td><td><div class="payment-actions"><button type="button" class="secondary" onclick="openPaymentEditor(${i})">Editar</button><button type="button" class="danger" onclick="removePayment(${i})">Remover</button></div></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty" style="padding:18px;margin-top:12px">Nenhum pagamento programado. Use “+ Adicionar pagamento” para cadastrar o primeiro compromisso.</div>';
 }
 function validateCCGEDate(input){
  if(!input||!input.value)return true;
@@ -1161,11 +1189,29 @@ function validateCCGEDate(input){
  return true;
 }
 window.validateCCGEDate=validateCCGEDate;
-document.addEventListener('change',e=>{if(e.target?.matches?.('input[type="date" min="1900-01-01" max="2100-12-31"]'))validateCCGEDate(e.target)},true);
+document.addEventListener('change',e=>{if(e.target?.matches?.('input[type="date"][min="1900-01-01"][max="2100-12-31"]'))validateCCGEDate(e.target)},true);
 
-window.editPayment=(i,k,v)=>{let t=modalTask();t.payments=t.payments||[];t.payments[i][k]=['amount','paidAmount'].includes(k)?parseMoney(v):v;if(k==='paidDate'&&v){t.payments[i].status='Pago'}$('#taskModal').dataset.temp=JSON.stringify(t);renderPayments(t)};
-window.removePayment=i=>{let t=modalTask();t.payments.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderPayments(t)};
-$('#addPayment').onclick=()=>{let t=modalTask();t.payments=t.payments||[];t.payments.push({id:uid('pay'),description:'',dueDate:'',amount:0,paidAmount:0,paidDate:'',status:'Previsto',documentRef:''});$('#taskModal').dataset.temp=JSON.stringify(t);renderPayments(t)};
+let editingPaymentIndex=null;
+function openPaymentEditor(i=null){
+ let t=modalTask();t.payments=t.payments||[];editingPaymentIndex=i;
+ const x=i===null?{description:'',dueDate:'',amount:0,paidAmount:0,paidDate:'',status:'Previsto',documentRef:'',notes:''}:t.payments[i];
+ $('#paymentModalTitle').textContent=i===null?'Adicionar pagamento':'Editar pagamento';
+ $('#payDescription').value=x.description||'';$('#payDueDate').value=x.dueDate||'';$('#payAmount').value=x.amount?brl(x.amount):'';$('#payPaidDate').value=x.paidDate||'';$('#payPaidAmount').value=x.paidAmount?brl(x.paidAmount):'';$('#payStatus').value=(x.status==='Paga'?'Pago':(x.status||'Previsto'));$('#payDocumentRef').value=x.documentRef||'';$('#payNotes').value=x.notes||'';
+ $('#paymentModal').classList.add('open');
+}
+window.openPaymentEditor=openPaymentEditor;
+function closePaymentEditor(){$('#paymentModal').classList.remove('open');editingPaymentIndex=null}
+$('#closePaymentModal').onclick=closePaymentEditor;$('#cancelPaymentModal').onclick=closePaymentEditor;
+$('#addPayment').onclick=()=>openPaymentEditor(null);
+$('#savePaymentModal').onclick=()=>{
+ if(!validateCCGEDate($('#payDueDate'))||!validateCCGEDate($('#payPaidDate')))return;
+ let t=modalTask();t.payments=t.payments||[];
+ const x={id:editingPaymentIndex===null?uid('pay'):(t.payments[editingPaymentIndex]?.id||uid('pay')),description:$('#payDescription').value.trim(),dueDate:$('#payDueDate').value||'',amount:parseMoney($('#payAmount').value),paidAmount:parseMoney($('#payPaidAmount').value),paidDate:$('#payPaidDate').value||'',status:$('#payStatus').value,documentRef:$('#payDocumentRef').value.trim(),notes:$('#payNotes').value.trim()};
+ if(x.paidDate&&x.status==='Previsto')x.status='Pago';
+ if(editingPaymentIndex===null)t.payments.push(x);else t.payments[editingPaymentIndex]=x;
+ $('#taskModal').dataset.temp=JSON.stringify(t);renderPayments(t);closePaymentEditor();toast(editingPaymentIndex===null?'Pagamento adicionado.':'Pagamento atualizado.');
+};
+window.removePayment=i=>{if(!confirm('Remover este pagamento?'))return;let t=modalTask();t.payments.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderPayments(t)};
 
 
 
