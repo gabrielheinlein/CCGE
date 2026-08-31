@@ -361,6 +361,9 @@ function setLoginLoading(on){
  let note=document.getElementById('ccgeLoginLoadingNote');
  if(on&&!note){note=document.createElement('div');note.id='ccgeLoginLoadingNote';note.className='login-loading-note';note.textContent='Autenticando e sincronizando seus dados...';btn.insertAdjacentElement('afterend',note)}
  if(!on&&note)note.remove();
+ const email=document.getElementById('loginEmail'),password=document.getElementById('loginPassword');
+ if(email)email.disabled=!!on;
+ if(password)password.disabled=!!on;
  document.body.style.cursor=on?'progress':'';
 }
 async function uploadCCGEFile(file,folder='geral'){
@@ -853,10 +856,22 @@ function normalizeTaskName(t){
 }
 
 let reactiveRenderQueued=false,renderInProgress=false;
+function ccgeMoneyNumber(v){
+ if(typeof v==='number')return Number.isFinite(v)?v:0;
+ let x=String(v??'').trim();if(!x)return 0;
+ x=x.replace(/\s/g,'').replace(/^R\$/i,'').replace(/[^0-9,.-]/g,'');
+ if(x.includes(','))x=x.replace(/\./g,'').replace(',','.');
+ const n=Number(x);return Number.isFinite(n)?n:0;
+}
+function canonicalAdditives(t){
+ const records=Array.isArray(t?.additiveRecords)?t.additiveRecords:[];
+ if(records.length)return records.reduce((sum,a)=>sum+ccgeMoneyNumber(a?.value),0);
+ return ccgeMoneyNumber(t?.additives);
+}
 function recomputeDerivedState(){
  (state.tasks||[]).forEach(t=>{
    t.additiveRecords=Array.isArray(t.additiveRecords)?t.additiveRecords:[];
-   if(t.additiveRecords.length)t.additives=t.additiveRecords.reduce((s,a)=>s+Number(a.value||0),0);
+   t.additives=canonicalAdditives(t);
    t.payments=Array.isArray(t.payments)?t.payments:[];
    if(t.payments.length)t.paid=t.payments.reduce((s,p)=>s+Number(p.paidAmount||0),0);
    t.invoices=Array.isArray(t.invoices)?t.invoices:[];
@@ -898,11 +913,11 @@ function taskSortRankStatus(s){return ({'Atenção':0,'Em andamento':1,'Planejad
 function sortTaskArray(arr,sort){const a=[...arr];if(!sort||sort==='current')return a;const cmp=(x,y)=>taskDisplayName(x).localeCompare(taskDisplayName(y),'pt-BR',{sensitivity:'base'}),date=v=>v?new Date(v+'T00:00:00').getTime():Number.MAX_SAFE_INTEGER;if(sort==='name-az')a.sort(cmp);else if(sort==='name-za')a.sort((x,y)=>-cmp(x,y));else if(sort==='status')a.sort((x,y)=>taskSortRankStatus(x.status)-taskSortRankStatus(y.status)||cmp(x,y));else if(sort==='priority')a.sort((x,y)=>taskSortRankPriority(x.priority)-taskSortRankPriority(y.priority)||cmp(x,y));else if(sort==='progress-desc')a.sort((x,y)=>Number(y.real||0)-Number(x.real||0)||cmp(x,y));else if(sort==='progress-asc')a.sort((x,y)=>Number(x.real||0)-Number(y.real||0)||cmp(x,y));else if(sort==='start')a.sort((x,y)=>date(x.startPlan)-date(y.startPlan)||cmp(x,y));else if(sort==='end')a.sort((x,y)=>date(x.endPlan)-date(y.endPlan)||cmp(x,y));return a}
 function renderTasks(){
  const q=($('#taskSearch').value||'').toLowerCase(),pf=$('#phaseFilter').value,sf=$('#statusFilter').value,mode=currentMode(),custom=(state.customFields||[]).filter(f=>!f.hidden),projectMode=mode==='Projeto';
- const heads=['Tarefa','Etapa','Prioridade','Responsável','Status'];if(!projectMode)heads.push('% execução');heads.push('Previsão início','Previsão fim','Valor previsto','Contratado','Pago');heads.push(...custom.map(f=>`${esc(f.name)} <button title="Gerenciar coluna" onclick="manageCustomField('${f.id}')">•••</button>`),'Ações e análise');
+ const heads=['Tarefa','Etapa','Prioridade','Responsável','Status'];if(!projectMode)heads.push('% execução');heads.push('Previsão início','Previsão fim','Valor previsto','Contrato atualizado','Pago');heads.push(...custom.map(f=>`${esc(f.name)} <button title="Gerenciar coluna" onclick="manageCustomField('${f.id}')">•••</button>`),'Ações e análise');
  $('#taskHead').innerHTML=heads.map(x=>`<th>${x}</th>`).join('');
  let arr=commandTasks().filter(t=>{let c=context(t);return (!q||[taskDisplayName(t),c.f.name,t.owner,t.company,t.scope,t.description,t.blocker,t.nextAction].join(' ').toLowerCase().includes(q))&&(!pf||c.f.id===pf)&&(!sf||t.status===sf)});arr=sortTaskArray(arr,$('#taskSort')?.value||'current');
  $('#selectedCount').textContent=`${state.selected.filter(id=>arr.some(t=>t.id===id)).length} selecionada(s)`;
- $('#taskBody').innerHTML=arr.map(t=>{let c=context(t),pc=t.priority==='Crítica'?'priority-critical':t.priority==='Alta'?'priority-high':'';return `<tr><td><a class="entity-link" onclick="openTask('${t.id}')">${esc(taskDisplayName(t))}</a>${t.blocked?`<div class="management-note priority-critical">Bloqueada: ${esc(t.blocker||'pendência não descrita')}</div>`:''}</td><td>${esc(c.f.name)}</td><td class="${pc}">${esc(t.priority||'Normal')}</td><td>${esc(t.owner||t.company||'—')}</td><td>${badge(t.status)}</td>${projectMode?'':`<td class="progress-cell"><button class="progress-editor" type="button" title="Clique para alterar o percentual" onclick="editTaskProgress('${t.id}')"><span class="progress-mini"><i style="width:${Math.max(0,Math.min(100,Number(t.real)||0))}%"></i></span><b>${Number(t.real)||0}%</b></button></td>`}<td>${dateBR(t.startPlan)}</td><td>${dateBR(t.endPlan)}</td><td>${brl(t.estimated)}</td><td>${brl(t.contracted)}</td><td>${brl(taskFinancial(t).paid)}</td>${custom.map(f=>`<td>${customFieldInput(t,f)}</td>`).join('')}<td><div class="row-actions"><button onclick="openTask('${t.id}')">Abrir</button><button onclick="analyzeOne('${t.id}')">Analisar</button><button onclick="archiveTask('${t.id}')">Arquivar</button><button class="danger" onclick="deleteTask('${t.id}')">Deletar</button></div></td></tr>`}).join('')||`<tr><td colspan="${heads.length}"><div class="empty">Nenhuma tarefa encontrada nesta visão.</div></td></tr>`;
+ $('#taskBody').innerHTML=arr.map(t=>{let c=context(t),pc=t.priority==='Crítica'?'priority-critical':t.priority==='Alta'?'priority-high':'';return `<tr><td><a class="entity-link" onclick="openTask('${t.id}')">${esc(taskDisplayName(t))}</a>${t.blocked?`<div class="management-note priority-critical">Bloqueada: ${esc(t.blocker||'pendência não descrita')}</div>`:''}</td><td>${esc(c.f.name)}</td><td class="${pc}">${esc(t.priority||'Normal')}</td><td>${esc(t.owner||t.company||'—')}</td><td>${badge(t.status)}</td>${projectMode?'':`<td class="progress-cell"><button class="progress-editor" type="button" title="Clique para alterar o percentual" onclick="editTaskProgress('${t.id}')"><span class="progress-mini"><i style="width:${Math.max(0,Math.min(100,Number(t.real)||0))}%"></i></span><b>${Number(t.real)||0}%</b></button></td>`}<td>${dateBR(t.startPlan)}</td><td>${dateBR(t.endPlan)}</td><td>${brl(t.estimated)}</td><td>${brl(financialTruth(t).contractUpdated)}</td><td>${brl(taskFinancial(t).paid)}</td>${custom.map(f=>`<td>${customFieldInput(t,f)}</td>`).join('')}<td><div class="row-actions"><button onclick="openTask('${t.id}')">Abrir</button><button onclick="analyzeOne('${t.id}')">Analisar</button><button onclick="archiveTask('${t.id}')">Arquivar</button><button class="danger" onclick="deleteTask('${t.id}')">Deletar</button></div></td></tr>`}).join('')||`<tr><td colspan="${heads.length}"><div class="empty">Nenhuma tarefa encontrada nesta visão.</div></td></tr>`;
 }
 
 window.editTaskProgress=id=>{
@@ -954,7 +969,7 @@ function financialTruth(t){
  const approvedOverride=t?.approvedOverride===true;
  const approvedEffective=approvedOverride?approvedEntered:estimated;
  const contracted=Number(t?.contracted||0);
- const additives=Number(t?.additives||0);
+ const additives=canonicalAdditives(t);
  const contractUpdated=contracted+additives;
  const invoiceSum=(t?.invoices||[]).reduce((s,x)=>s+Number(x.amount||0),0);
  const invoiced=invoiceSum||Number(t?.invoiced||0);
@@ -1015,8 +1030,8 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#approvedBreakdo
 window.openApprovedBreakdown=(taskId)=>{
  $('#metricModal').classList.remove('open');
  const t=state.tasks.find(x=>x.id===taskId);if(!t)return;
- const c=context(t),base=Number(t.approved||0),adds=Array.isArray(t.additiveRecords)?t.additiveRecords:[],legacy=Number(t.additives||0);
- const recordsTotal=adds.reduce((s,a)=>s+Number(a.value||0),0),total=base+legacy;
+ const c=context(t),base=Number(t.approved||0),adds=Array.isArray(t.additiveRecords)?t.additiveRecords:[],legacy=financialTruth(t).additives;
+ const recordsTotal=adds.reduce((s,a)=>s+ccgeMoneyNumber(a.value),0),total=base+legacy;
  let rows=`<tr><td><b>Contratação inicial</b></td><td>${esc(t.map||'Mapa não informado')}</td><td>${dateBR(t.mapApprovalDate||'')}</td><td style="text-align:right">${brl(base)}</td><td>${(t.mapFiles||[]).length?'Documento anexado':'—'}</td></tr>`;
  if(adds.length)rows+=adds.map((a,i)=>`<tr><td><b>${esc(a.name||('Aditivo '+(i+1)))}</b></td><td>${esc(a.map||'Mapa não informado')}</td><td>${dateBR(a.approvalDate||'')}</td><td style="text-align:right">${brl(Number(a.value||0))}</td><td>${(a.files||[]).length?'Documento anexado':'—'}</td></tr>`).join('');
  else if(legacy>0)rows+=`<tr><td><b>Aditivos</b></td><td>Detalhamento não disponível</td><td>—</td><td style="text-align:right">${brl(legacy)}</td><td>—</td></tr>`;
@@ -1028,7 +1043,7 @@ window.openMetricDetail=key=>{
  const meta={estimated:['Valor estimado','Estimativas informadas nas tarefas'],approved:['Aprovado efetivo','Valor aprovado informado; quando vazio, utiliza o valor previsto. Aditivos permanecem no contrato atualizado'],contracted:['Contratado inicial','Valores dos contratos iniciais'],additives:['Aditivos','Aditivos registrados'],updated:['Contratado atualizado','Contrato inicial somado aos aditivos'],paid:['Valor pago','Pagamentos registrados']};
  const [title,desc]=meta[key]||meta.contracted;
  const scope=$('#commandScope').value,label=scope==='Todos'?'Geral':scope==='Obra'?'Obras':'Projetos';$('#metricModalTitle').textContent=title;$('#metricModalDescription').textContent=desc+' na visão '+label+' do Centro de Comando.';
- $('#metricDetailBody').innerHTML=arr.map(t=>{let c=context(t),v=key==='approved'?financialTruth(t).approvedEffective:key==='updated'?financialTruth(t).contractUpdated:key==='paid'?financialTruth(t).paid:Number(t[key]||0);return `<tr><td>${esc(t.nature)}</td><td>${esc(c.f.name)}</td><td><a class="entity-link" onclick="${key==='approved'?`openApprovedBreakdown('${t.id}')`:`$('#metricModal').classList.remove('open');openTask('${t.id}')`}">${esc(taskDisplayName(t))}</a></td><td>${brl(v)}</td></tr>`}).join('')||'<tr><td colspan="5"><div class="empty">Nenhum registro no filtro atual.</div></td></tr>';
+ $('#metricDetailBody').innerHTML=arr.map(t=>{let c=context(t),v=key==='approved'?financialTruth(t).approvedEffective:key==='updated'?financialTruth(t).contractUpdated:key==='paid'?financialTruth(t).paid:key==='additives'?financialTruth(t).additives:Number(t[key]||0);return `<tr><td>${esc(t.nature)}</td><td>${esc(c.f.name)}</td><td><a class="entity-link" onclick="${key==='approved'?`openApprovedBreakdown('${t.id}')`:`$('#metricModal').classList.remove('open');openTask('${t.id}')`}">${esc(taskDisplayName(t))}</a></td><td>${brl(v)}</td></tr>`}).join('')||'<tr><td colspan="5"><div class="empty">Nenhum registro no filtro atual.</div></td></tr>';
  $('#metricModal').classList.add('open');
 };
 function renderAttention(){
@@ -1045,7 +1060,7 @@ function openGlobalSearch(query){const q=String(query||'').trim().toLowerCase();
 function renderHistory(){let h=state.history.slice(0,6);$('#historyList').innerHTML=h.map(x=>`<div class="attention-item"><i class="dot blue"></i><div><b>${x.text}</b><small>${new Date(x.date).toLocaleString('pt-BR')}</small></div></div>`).join('')}
 function chartValue(t,key){
  if(key==='approved')return financialTruth(t).approvedEffective;if(key==='approvedInitial')return financialTruth(t).approvedEntered;if(key==='updated')return financialTruth(t).contractUpdated;if(key==='balance')return financialTruth(t).contractBalance;if(key==='paid')return financialTruth(t).paid;
- if(key==='days'){const d=daysToDue(t);return d===null?0:d}if(key==='delay'){const d=daysToDue(t);return d!==null&&d<0?Math.abs(d):0}if(key==='additiveRatio')return Number(t.contracted||0)?Number(t.additives||0)/Number(t.contracted||0)*100:0;
+ if(key==='days'){const d=daysToDue(t);return d===null?0:d}if(key==='delay'){const d=daysToDue(t);return d!==null&&d<0?Math.abs(d):0}if(key==='additiveRatio')return financialTruth(t).contracted?financialTruth(t).additives/financialTruth(t).contracted*100:0;
  if(key==='invoiced')return financialTruth(t).invoiced;if(key==='completed')return t.status==='Concluída'?1:0;if(key==='attention')return t.status==='Atenção'?1:0;
  if(key==='plannedStatus')return t.status==='Planejada'?1:0;if(key==='progressStatus')return t.status==='Em andamento'?1:0;if(key==='attentionStatus')return t.status==='Atenção'?1:0;if(key==='doneStatus')return t.status==='Concluída'?1:0;
  if(key==='prioCritical')return t.priority==='Crítica'?1:0;if(key==='prioHigh')return t.priority==='Alta'?1:0;if(key==='prioNormal')return (t.priority||'Normal')==='Normal'?1:0;if(key==='prioLow')return t.priority==='Baixa'?1:0;if(key==='blockedYes')return t.blocked?1:0;if(key==='blockedNo')return t.blocked?0:1;
@@ -1162,8 +1177,9 @@ function openTask(id,activityId,forcedNature,forcedPhaseId){
  editingId=id;
  let t=id?normalizeTaskName(state.tasks.find(x=>x.id===id)):{id:uid('t'),phaseId:forcedPhaseId||'',activityId:'',name:'',nature:forcedNature||'Obra',status:'Planejada',priority:'Normal',owner:'',blocked:false,blocker:'',blockedBy:'',lastUpdate:'',nextAction:'',startPlan:'',endPlan:'',startReal:'',endReal:'',requestDate:'',contractDate:'',revisedDelivery:'',actualDelivery:'',estimated:0,approved:0,contracted:0,additives:0,invoiced:0,paid:0,planned:0,real:0,company:'',internalOwner:'',discipline:'',scope:'',description:'',notes:'',map:'',mapApprovalDate:'',mapFiles:[],invoices:[],deliverables:[],payments:[],milestones:[],additiveRecords:[],paymentMethod:'',paymentTerms:'',paymentCount:'',custom:{},photos:[],documents:[],videos:[],history:[],archived:false};
  t.payments=Array.isArray(t.payments)?t.payments:[];t.milestones=Array.isArray(t.milestones)?t.milestones:[];t.additiveRecords=Array.isArray(t.additiveRecords)?t.additiveRecords:[];
- if(!t.additiveRecords.length&&Number(t.additives||0)>0)t.additiveRecords=[{id:uid('ad'),name:'Aditivo legado',map:'',approvalDate:'',value:Number(t.additives||0),notes:'Valor migrado automaticamente do campo consolidado anterior.',files:[],legacy:true}];
- t.additives=t.additiveRecords.reduce((s,a)=>s+Number(a.value||0),0);t.invoices=Array.isArray(t.invoices)?t.invoices:[];t.deliverables=Array.isArray(t.deliverables)?t.deliverables:[];
+ const legacyAdditives=ccgeMoneyNumber(t.additives);
+ if(!t.additiveRecords.length&&legacyAdditives>0)t.additiveRecords=[{id:uid('ad'),name:'Aditivo legado',map:'',approvalDate:'',value:legacyAdditives,notes:'Valor migrado automaticamente do campo consolidado anterior.',files:[],legacy:true}];
+ t.additives=canonicalAdditives(t);t.invoices=Array.isArray(t.invoices)?t.invoices:[];t.deliverables=Array.isArray(t.deliverables)?t.deliverables:[];
  $('#taskModal').dataset.temp=JSON.stringify(t);$('#taskModalTitle').textContent=id?(t.nature==='Projeto'?'Gerenciar projeto':'Gerenciar tarefa'):(t.nature==='Projeto'?'Novo projeto':'Nova tarefa');
  let inputs=[['name',t.nature==='Projeto'?'Nome do projeto':'Tarefa','text','all'],['phaseId','Etapa relacionada','phase','all'],['nature','Natureza','nature','all'],['status','Status','status','all'],['priority','Prioridade','priority','all'],['discipline','Disciplina / especialidade','text','project'],['company',t.nature==='Projeto'?'Empresa responsável pelo projeto':'Empresa / fornecedor','text','all'],['internalOwner','Responsável interno','text','project'],['requestDate','Data da solicitação','date','project'],['contractDate','Data da contratação','date','project'],['startPlan',t.nature==='Projeto'?'Início previsto':'Previsão início','date','all'],['endPlan',t.nature==='Projeto'?'Entrega prevista':'Previsão fim','date','all'],['revisedDelivery','Entrega revisada','date','project'],['actualDelivery','Entrega real','date','project'],['startReal','Início real','date','work'],['endReal','Fim real','date','work'],['estimated','Valor previsto','money','all'],['contracted','Valor contratado','money','all'],['scope','Escopo','text','project'],['description','Descrição','text','project']];
  $('#taskForm').innerHTML=inputs.map(([k,n,tp,kind])=>{let cls=kind==='project'?'project-only':kind==='work'?'work-only':'';
@@ -1179,7 +1195,7 @@ function openTask(id,activityId,forcedNature,forcedPhaseId){
  const taskFin=taskFinancial(t),approvedEffective=financialTruth(t).approvedEffective;
  $('#taskForm').insertAdjacentHTML('beforeend',`<div class="field full"><details class="card" style="padding:14px"><summary style="cursor:pointer;font-weight:800">Mais informações financeiras</summary><div class="form-grid" style="margin-top:14px">
  <div class="field"><label>Valor aprovado diferente do previsto</label><label style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><input type="checkbox" data-key="approvedOverride" ${t.approvedOverride===true?'checked':''} style="width:auto"> Usar valor aprovado específico</label><input class="money-input" data-key="approved" data-money="true" type="text" inputmode="decimal" value="${t.approvedOverride===true&&Number(t.approved||0)?esc(brl(t.approved)):''}" placeholder="Preencha somente se for diferente do previsto" ${t.approvedOverride===true?'':'disabled'}><small style="color:var(--muted)">Aprovado efetivo: ${brl(approvedEffective)}. Sem marcação, acompanha automaticamente o valor previsto.</small></div>
- <div class="field"><label>Aditivos</label><input value="${brl(Number(t.additives||0))}" disabled><small style="color:var(--muted)">Calculado pelos registros de aditivo.</small></div>
+ <div class="field"><label>Aditivos</label><input value="${brl(financialTruth(t).additives)}" disabled><small style="color:var(--muted)">Calculado pelos registros de aditivo.</small></div>
  <div class="field"><label>Faturado</label><input value="${brl(taskFin.invoiced)}" disabled><small style="color:var(--muted)">Calculado pelos documentos/lançamentos financeiros.</small></div>
  <div class="field"><label>Pago</label><input value="${brl(taskFin.paid)}" disabled><small style="color:var(--muted)">Calculado pelos pagamentos efetivamente registrados.</small></div>
  <div class="field"><label>Saldo contratual</label><input value="${brl(taskFin.balance)}" disabled><small style="color:var(--muted)">Contrato atualizado menos pagamentos.</small></div>
@@ -1249,11 +1265,11 @@ window.editAdditiveDate=(i,v)=>{
  t.additiveRecords[i].approvalDate=v||'';
  $('#taskModal').dataset.temp=JSON.stringify(t);
 };
-function additiveTotal(t){return (t.additiveRecords||[]).reduce((s,a)=>s+Number(a.value||0),0)}
+function additiveTotal(t){return canonicalAdditives({...t,additiveRecords:Array.isArray(t?.additiveRecords)?t.additiveRecords:[]})}
 function renderAdditives(t){
  t.additiveRecords=Array.isArray(t.additiveRecords)?t.additiveRecords:[];
  t.additiveRecords.forEach(a=>{if(a.approvalDate&&!/^((19|20|21)\d{2})-\d{2}-\d{2}$/.test(a.approvalDate))a.approvalDate=''});
- const total=additiveTotal(t),base=Number(t.contracted||0);
+ const total=additiveTotal(t),base=ccgeMoneyNumber(t.contracted);
  $('#additiveBaseValue').textContent=brl(base);$('#additiveTotalValue').textContent=brl(total);$('#additiveUpdatedValue').textContent=brl(base+total);
  $('#additiveList').innerHTML=t.additiveRecords.length?t.additiveRecords.map((a,i)=>`<div class="additive-card">
  <div class="additive-card-head"><div><b>${esc(a.name||`Aditivo ${i+1}`)}</b><small>${a.map?esc(a.map):'Mapa não informado'}${a.approvalDate?' · '+dateBR(a.approvalDate):''}</small></div><strong>${brl(a.value)}</strong></div>
@@ -1444,7 +1460,7 @@ function projectNextDue(t){let dates=(t.invoices||[]).filter(x=>x.status!=='Paga
 function renderProjects(){let q=($('#projectSearch').value||'').toLowerCase(),sf=$('#projectStatusFilter')?.value||'',cf=$('#projectCompanyFilter')?.value||'',df=$('#projectDeadlineFilter')?.value||'',today=new Date();let all=state.tasks.filter(t=>t.nature==='Projeto'&&!t.archived);let companies=[...new Set(all.map(t=>t.company).filter(Boolean))].sort(),cur=$('#projectCompanyFilter')?.value||'';if($('#projectCompanyFilter')){$('#projectCompanyFilter').innerHTML='<option value="">Todas as empresas</option>'+companies.map(x=>`<option ${cur===x?'selected':''}>${esc(x)}</option>`).join('')}
  let arr=all.filter(t=>{let due=t.revisedDelivery||t.endPlan||'',days=due?Math.ceil((new Date(due+'T23:59:59')-today)/86400000):99999;return (!q||[taskDisplayName(t),t.scope,t.description,t.company,t.discipline,t.internalOwner].join(' ').toLowerCase().includes(q))&&(!sf||t.status===sf)&&(!cf||t.company===cf)&&(!df||(df==='late'?days<0&&t.status!=='Concluída':days>=0&&days<=30))});
  const sum=k=>all.reduce((s,t)=>s+Number(t[k]||0),0),updated=sum('contracted')+sum('additives'),late=all.filter(t=>{let d=t.revisedDelivery||t.endPlan;return d&&new Date(d)<today&&t.status!=='Concluída'}).length,pendingInvoices=all.flatMap(t=>t.invoices||[]).filter(x=>x.status!=='Paga').reduce((s,x)=>s+Number(x.amount||0),0);$('#projectMetrics').innerHTML=[['Projetos ativos',all.filter(t=>t.status!=='Concluída').length],['Valor aprovado',brl(sumApprovedWithAdditives(all))],['Contrato atualizado',brl(updated)],['NF/boletos pendentes',brl(pendingInvoices)],['Projetos atrasados',late]].map(x=>`<div class="card"><small>${x[0]}</small><strong>${x[1]}</strong></div>`).join('');$('#projectCount').textContent=`${arr.length} projeto(s)`;
- $('#projectBody').innerHTML=arr.map(t=>{let ft=financialTruth(t),updated=ft.contractUpdated,invoiced=ft.invoiced,balance=ft.contractBalance,delivery=t.revisedDelivery||t.endPlan,nextDue=projectNextDue(t),late=delivery&&new Date(delivery)<today&&t.status!=='Concluída';return `<tr><td class="project-name-cell"><a class="entity-link" onclick="openTask('${t.id}')"><b>${esc(taskDisplayName(t))}</b></a><small>${esc(t.description||'Sem descrição')}</small></td><td>${esc(t.discipline||'—')}</td><td>${esc(t.scope||'—')}</td><td>${esc(t.custom?.cf_area||'—')}</td><td>${esc(t.company||'—')}</td><td>${esc(t.internalOwner||'—')}</td><td>${badge(t.status)}</td><td>${dateBR(t.contractDate)}</td><td class="${late?'deadline-late':'deadline-ok'}">${dateBR(t.endPlan)}</td><td class="${late?'deadline-late':''}">${dateBR(t.revisedDelivery)}</td><td>${brl(t.estimated)}</td><td>${brl(approvedWithAdditives(t))}</td><td>${brl(t.contracted)}</td><td>${brl(t.additives)}</td><td><b>${brl(updated)}</b></td><td>${brl(invoiced)}</td><td>${brl(ft.paid)}</td><td>${dateBR(nextDue)}</td><td><b>${brl(balance)}</b></td><td><div class="object-actions"><button onclick="openTask('${t.id}')">Gerenciar</button><button onclick="analyzeOne('${t.id}')">Analisar</button><button class="remove" onclick="archiveTask('${t.id}')">Arquivar</button></div></td></tr>`}).join('')||'<tr><td colspan="20"><div class="empty">Nenhum projeto encontrado.</div></td></tr>'}
+ $('#projectBody').innerHTML=arr.map(t=>{let ft=financialTruth(t),updated=ft.contractUpdated,invoiced=ft.invoiced,balance=ft.contractBalance,delivery=t.revisedDelivery||t.endPlan,nextDue=projectNextDue(t),late=delivery&&new Date(delivery)<today&&t.status!=='Concluída';return `<tr><td class="project-name-cell"><a class="entity-link" onclick="openTask('${t.id}')"><b>${esc(taskDisplayName(t))}</b></a><small>${esc(t.description||'Sem descrição')}</small></td><td>${esc(t.discipline||'—')}</td><td>${esc(t.scope||'—')}</td><td>${esc(t.custom?.cf_area||'—')}</td><td>${esc(t.company||'—')}</td><td>${esc(t.internalOwner||'—')}</td><td>${badge(t.status)}</td><td>${dateBR(t.contractDate)}</td><td class="${late?'deadline-late':'deadline-ok'}">${dateBR(t.endPlan)}</td><td class="${late?'deadline-late':''}">${dateBR(t.revisedDelivery)}</td><td>${brl(t.estimated)}</td><td>${brl(approvedWithAdditives(t))}</td><td>${brl(ft.contracted)}</td><td>${brl(ft.additives)}</td><td><b>${brl(updated)}</b></td><td>${brl(invoiced)}</td><td>${brl(ft.paid)}</td><td>${dateBR(nextDue)}</td><td><b>${brl(balance)}</b></td><td><div class="object-actions"><button onclick="openTask('${t.id}')">Gerenciar</button><button onclick="analyzeOne('${t.id}')">Analisar</button><button class="remove" onclick="archiveTask('${t.id}')">Arquivar</button></div></td></tr>`}).join('')||'<tr><td colspan="20"><div class="empty">Nenhum projeto encontrado.</div></td></tr>'}
 
 let editingMonthlyId=null;
 function monthLabel(v){if(!v)return '—';const [y,m]=v.split('-');return `${m}/${y}`}
@@ -1771,9 +1787,11 @@ document.getElementById('loginForm').addEventListener('submit',async e=>{
   try{
     const {error}=await supabaseClient.auth.signInWithPassword({email,password});
     if(error){authMessage('E-mail ou senha inválidos.');return}
-    document.getElementById('loginPassword').value='';
     await bootstrapCCGE();
-  }finally{if(!ccgeBootstrapped)setLoginLoading(false)}
+    if(ccgeBootstrapped)document.getElementById('loginPassword').value='';
+  }finally{
+    if(!ccgeBootstrapped){setLoginLoading(false);const p=document.getElementById('loginPassword');if(p){p.disabled=false;p.focus()}}
+  }
 });
 document.getElementById('logoutBtn').addEventListener('click',async()=>{
   clearTimeout(inactivityTimer);
