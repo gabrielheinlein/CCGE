@@ -1217,7 +1217,20 @@ function openTask(id,activityId,forcedNature,forcedPhaseId){
  $('#taskNotes').value=t.notes||'';$('#taskMap').value=t.map||'';$('#taskMapApprovalDate').value=t.mapApprovalDate||'';
  $('#taskOwner').value=t.owner||'';$('#taskBlocked').value=String(!!t.blocked);$('#taskBlocker').value=t.blocker||'';$('#taskBlockedBy').value=t.blockedBy||'';$('#taskLastUpdate').value=t.lastUpdate||'';$('#taskNextAction').value=t.nextAction||'';
  $('#paymentMethod').value=t.paymentMethod||'';$('#paymentTerms').value=t.paymentTerms||'';$('#paymentCount').value=t.paymentCount||'';
- $('#taskModal').dataset.temp=JSON.stringify(t);renderPayments(t);renderAdditives(t);renderMilestones(t);renderMapFiles(t);renderDocFiles(t);renderPhotos(t);renderVideos(t);renderTaskHistory(t);renderInvoices(t);renderDeliverables(t);$('#taskModal').classList.add('open');
+ $('#taskModal').dataset.temp=JSON.stringify(t);renderPayments(t);renderAdditives(t);renderMilestones(t);renderMapFiles(t);renderDocFiles(t);renderPhotos(t);renderVideos(t);renderTaskHistory(t);renderInvoices(t);renderDeliverables(t);
+ // Toda abertura de tarefa começa pela mesma premissa visual da aba Etapas:
+ // aba Geral ativa e diálogo posicionado no topo. Salvar alterações continua preservando
+ // aba e rolagem porque não reabre o modal.
+ $$('.tabs button').forEach(x=>x.classList.remove('active'));
+ $$('.tab-content').forEach(x=>x.classList.remove('active'));
+ const generalTab=document.querySelector('.tabs button[data-tab="general"]');
+ const generalContent=$('#tab-general');
+ if(generalTab)generalTab.classList.add('active');
+ if(generalContent)generalContent.classList.add('active');
+ $('#taskModal').classList.add('open');
+ const taskDialog=$('#taskModal .dialog');
+ if(taskDialog){taskDialog.scrollTop=0;requestAnimationFrame(()=>{taskDialog.scrollTop=0})}
+
 }
 window.createPhaseFromTask=()=>{
  const name=prompt('Nome da nova etapa:');if(!name||!name.trim())return;
