@@ -458,7 +458,7 @@ async function carregarEstadoNuvem() {
 </form></div>
 <div class="app">
 <aside class="sidebar">
- <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.35</small></div></div>
+ <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.44</small></div></div>
  <nav class="nav" id="nav">
   <button class="active" data-page="home">⌂ <span class="label">Centro de Comando</span></button>
   <button data-page="structure" data-context="work">◫ <span class="label">Etapas</span></button>
@@ -1193,7 +1193,7 @@ function openTask(id,activityId,forcedNature,forcedPhaseId){
    if(tp==='nature')return `<div class="field ${cls}"><label>${n}</label><select data-key="${k}"><option ${t[k]==='Obra'?'selected':''}>Obra</option><option ${t[k]==='Projeto'?'selected':''}>Projeto</option><option ${t[k]==='Outro'?'selected':''}>Outro</option></select></div>`;
    if(tp==='status')return `<div class="field ${cls}"><label>${n}</label><select data-key="${k}">${['Planejada','Em andamento','Atenção','Concluída'].map(v=>`<option ${t[k]===v?'selected':''}>${v}</option>`).join('')}</select></div>`;if(tp==='priority')return `<div class="field ${cls}"><label>${n}</label><select data-key="${k}">${['Crítica','Alta','Normal','Baixa'].map(v=>`<option ${t[k]===v?'selected':''}>${v}</option>`).join('')}</select><small style="color:var(--muted)">Usada em alertas e ordenações.</small></div>`;
    if(tp==='money')return `<div class="field ${cls}"><label>${n}</label><input class="money-input" data-key="${k}" data-money="true" type="text" inputmode="decimal" value="${k==='estimated'&&!t[k]?'':esc(brl(t[k]))}">${k==='estimated'?'<small style="color:var(--muted)">Opcional. Referência de planejamento; não alimenta o Centro de Comando.</small>':''}</div>`;
-   return `<div class="field ${cls}"><label>${n}</label><input data-key="${k}" type="${tp}" value="${esc(k==='name'?taskBaseName(t):t[k])}" ${['startPlan','endPlan'].includes(k)?`data-original="${esc(t[k]||'')}" onchange="this.dataset.touched='1'"`:''}></div>`;
+   return `<div class="field ${cls}"><label>${n}</label><input data-key="${k}" type="${tp}" ${tp==='date'?'min="1900-01-01" max="2100-12-31"':''} value="${esc(k==='name'?taskBaseName(t):t[k])}" ${['startPlan','endPlan'].includes(k)?`data-original="${esc(t[k]||'')}" onchange="this.dataset.touched='1'"`:''}></div>`;
  }).join('')+state.customFields.map(f=>`<div class="field"><label>${esc(f.name)}</label><input data-custom="${f.id}" value="${esc(t.custom?.[f.id]||'')}"></div>`).join('');
  const applyNature=()=>{const project=$('#taskForm [data-key="nature"]').value==='Projeto';$$('.project-only').forEach(x=>x.classList.toggle('scope-hidden',!project));$$('.work-only').forEach(x=>x.classList.toggle('scope-hidden',project));$('#taskModalTitle').textContent=editingId?(project?'Gerenciar projeto':'Gerenciar tarefa'):(project?'Novo projeto':'Nova tarefa')};
  const natureSelect=$('#taskForm [data-key="nature"]');if(natureSelect)natureSelect.onchange=applyNature;applyNature()
@@ -1241,8 +1241,50 @@ function renderPayments(t){
  a.forEach((p,i)=>{const k=paymentCommitmentKey(p);let g=groups.find(x=>x.key===k);if(!g){g={key:k,name:p.commitmentName||p.description||'Pagamento',method:p.commitmentMethod||'',notes:p.commitmentNotes||'',items:[]};groups.push(g)}g.items.push({...p,_index:i})});
  $('#paymentList').innerHTML=groups.length?groups.map(g=>{const planned=g.items.reduce((s,p)=>s+Number(p.amount||0),0),paid=g.items.reduce((s,p)=>s+Number(p.paidAmount||0),0),paidN=g.items.filter(paymentIsPaid).length,lateN=g.items.filter(p=>!paymentIsPaid(p)&&p.dueDate&&new Date(p.dueDate+'T23:59:59')<new Date()).length;return `<div class="commitment-card"><div class="commitment-head"><div><b>${esc(g.name)}</b><small>${g.items.length} ${g.items.length===1?'pagamento':'parcelas/medições'}${g.method?' · '+esc(g.method):''}${lateN?' · '+lateN+' vencida(s)':''}</small></div><div class="commitment-totals"><span>Previsto<b>${brl(planned)}</b></span><span>Pago<b>${brl(paid)}</b></span><span>Saldo<b>${brl(Math.max(0,planned-paid))}</b></span><span>Situação<b>${paidN}/${g.items.length} pagos</b></span><button type="button" class="secondary" onclick="openPaymentEditorByKey('${g.key}')">Gerenciar</button><button type="button" class="danger" onclick="removePaymentCommitment('${g.key}')">Remover</button></div></div><div class="payment-table-wrap" style="margin:0;border:0;border-radius:0"><table class="payment-table"><thead><tr><th>Parcela / medição</th><th>Vencimento</th><th>Previsto</th><th>Pago em</th><th>Valor pago</th><th>Status</th><th>NF / boleto</th></tr></thead><tbody>${g.items.map(p=>`<tr><td><b>${esc(p.installmentLabel||p.description||'—')}</b></td><td>${p.dueDate?dateBR(p.dueDate):'—'}</td><td>${brl(p.amount||0)}</td><td>${p.paidDate?dateBR(p.paidDate):'—'}</td><td>${Number(p.paidAmount||0)?brl(p.paidAmount):'—'}</td><td>${badge(p.status||'Previsto')}</td><td>${esc(p.documentRef||'—')}</td></tr>`).join('')}</tbody></table></div></div>`}).join(''):'<div class="empty" style="padding:18px;margin-top:12px">Nenhuma programação financeira cadastrada. Use “+ Adicionar pagamento”.</div>';
 }
-function validateCCGEDate(input){if(!input||!input.value)return true;const year=Number(input.value.slice(0,4));if(year<1900||year>2100){input.value='';toast('Ano inválido. Informe uma data entre 1900 e 2100.');input.focus();return false}return true}
-window.validateCCGEDate=validateCCGEDate;document.addEventListener('change',e=>{if(e.target?.matches?.('input[type="date"][min="1900-01-01"][max="2100-12-31"]'))validateCCGEDate(e.target)},true);
+function prepareCCGEDateInput(input){
+ if(!input||input.type!=='date')return input;
+ if(!input.min)input.min='1900-01-01';
+ if(!input.max)input.max='2100-12-31';
+ return input;
+}
+function validateCCGEDate(input,opts={}){
+ input=prepareCCGEDateInput(input);
+ if(!input)return true;
+ const value=input.value||'';
+ // Inputs type=date ficam temporariamente incompletos enquanto o usuário edita dia/mês/ano.
+ // Nunca gerar erro durante esse estado intermediário.
+ if(!value){input.setCustomValidity('');return true}
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(value)){input.setCustomValidity('');return true}
+ const year=Number(value.slice(0,4));
+ const invalidYear=year<1900||year>2100;
+ const invalidNative=input.validity?.rangeUnderflow||input.validity?.rangeOverflow||input.validity?.badInput;
+ if(invalidYear||invalidNative){
+   input.setCustomValidity('Informe uma data entre 1900 e 2100.');
+   if(opts.notify!==false)toast('Ano inválido. Informe uma data entre 1900 e 2100.');
+   return false;
+ }
+ input.setCustomValidity('');
+ return true;
+}
+function validateCCGEDatesIn(root=document,opts={}){
+ const inputs=[...root.querySelectorAll('input[type="date"]')];
+ for(const input of inputs){
+   prepareCCGEDateInput(input);
+   if(!validateCCGEDate(input,{notify:false})){
+     if(opts.notify!==false)toast('Ano inválido. Informe uma data entre 1900 e 2100.');
+     if(opts.focus!==false)input.focus()
+     return false;
+   }
+ }
+ return true;
+}
+window.validateCCGEDate=validateCCGEDate;
+window.validateCCGEDatesIn=validateCCGEDatesIn;
+// Validação global: aplica limites a qualquer campo de data, inclusive os criados dinamicamente.
+document.addEventListener('focusin',e=>{if(e.target?.matches?.('input[type="date"]'))prepareCCGEDateInput(e.target)},true);
+// Não validar em input/change/blur: o Chrome pode emitir estados intermediários enquanto apenas
+// dia, mês ou ano estão sendo editados. A validação ocorre nas ações de confirmação/salvamento.
+// Isso evita mensagens falsas durante a digitação e mantém o valor disponível para correção.
 let editingCommitmentKey=null;
 function installmentRowHTML(x={},i=0){const title=esc(x.installmentLabel||x.description||('Parcela '+(i+1)));return `<div class="installment-row" data-installment-row><div class="installment-card-head"><b>${title}</b><div style="display:flex;gap:6px"><button type="button" class="secondary installment-collapse" onclick="const g=this.closest('[data-installment-row]').querySelector('.installment-card-grid');g.classList.toggle('collapsed');this.textContent=g.classList.contains('collapsed')?'Expandir':'Recolher'">Recolher</button><button type="button" class="danger installment-remove" onclick="this.closest('[data-installment-row]').remove();updateInstallmentSummary()">Remover</button></div></div><div class="installment-card-grid"><div class="field"><label>Parcela / medição</label><input data-p="label" value="${title}" oninput="this.closest('[data-installment-row]').querySelector('.installment-card-head b').textContent=this.value||'Parcela'"></div><div class="field"><label>Data prevista</label><input data-p="dueDate" type="date" min="1900-01-01" max="2100-12-31" value="${esc(x.dueDate||'')}"></div><div class="field"><label>Valor programado</label><input data-p="amount" inputmode="decimal" value="${x.amount?esc(brl(x.amount)):''}"></div><div class="field"><label>Data do pagamento</label><input data-p="paidDate" type="date" min="1900-01-01" max="2100-12-31" value="${esc(x.paidDate||'')}"></div><div class="field"><label>Valor pago</label><input data-p="paidAmount" inputmode="decimal" value="${x.paidAmount?esc(brl(x.paidAmount)):''}"></div><div class="field"><label>Status</label><select data-p="status">${['Previsto','Aguardando documento','Aguardando aprovação','Aprovado','Pago','Vencido','Suspenso'].map(v=>`<option ${((x.status==='Paga'?'Pago':x.status)||'Previsto')===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="field" style="grid-column:span 2"><label>NF / boleto / referência</label><input data-p="documentRef" value="${esc(x.documentRef||'')}"></div><div class="field"><label>Observação da parcela</label><input data-p="notes" value="${esc(x.notes||'')}"></div><input type="hidden" data-p="id" value="${esc(x.id||'')}"></div></div>`}
 function setPaymentType(type){document.querySelector(`input[name="payType"][value="${type}"]`).checked=true;$('#singlePaymentFields').style.display=type==='single'?'block':'none';$('#schedulePaymentFields').style.display=type==='schedule'?'block':'none'}
@@ -1273,10 +1315,12 @@ window.editAdditiveDate=(i,v)=>{
  t.additiveRecords[i].approvalDate=v||'';
  $('#taskModal').dataset.temp=JSON.stringify(t);
 };
-function additiveTotal(t){return canonicalAdditives({...t,additiveRecords:Array.isArray(t?.additiveRecords)?t.additiveRecords:[]})}
+function additiveTotal(t){
+ const records=Array.isArray(t?.additiveRecords)?t.additiveRecords:[];
+ return records.reduce((sum,a)=>sum+ccgeMoneyNumber(a?.value),0);
+}
 function renderAdditives(t){
  t.additiveRecords=Array.isArray(t.additiveRecords)?t.additiveRecords:[];
- t.additiveRecords.forEach(a=>{if(a.approvalDate&&!/^((19|20|21)\d{2})-\d{2}-\d{2}$/.test(a.approvalDate))a.approvalDate=''});
  const total=additiveTotal(t),base=ccgeMoneyNumber(t.contracted);
  $('#additiveBaseValue').textContent=brl(base);$('#additiveTotalValue').textContent=brl(total);$('#additiveUpdatedValue').textContent=brl(base+total);
  $('#additiveList').innerHTML=t.additiveRecords.length?t.additiveRecords.map((a,i)=>`<div class="additive-card">
@@ -1316,8 +1360,21 @@ function initAdditiveFileInputs(){
 
  prepareAdditiveLinks();initAdditiveFileInputs();
 }
-window.editAdditive=(i,k,v)=>{let t=modalTask();if(k==='value')v=parseMoney(v);t.additiveRecords[i][k]=v;t.additives=additiveTotal(t);$('#taskModal').dataset.temp=JSON.stringify(t);renderAdditives(t)};
-window.removeAdditive=i=>{let t=modalTask(),a=t.additiveRecords?.[i];if(!a)return;if(!confirm(`Excluir o aditivo "${a.name||'Aditivo'}"?`))return;t.additiveRecords.splice(i,1);t.additives=additiveTotal(t);$('#taskModal').dataset.temp=JSON.stringify(t);renderAdditives(t)};
+window.editAdditive=(i,k,v)=>{let t=modalTask();if(k==='value')v=parseMoney(v);t.additiveRecords[i][k]=v;t.additives=additiveTotal(t);$('#taskModal').dataset.temp=JSON.stringify(t);setTimeout(()=>renderAdditives(modalTask()),0)};
+window.removeAdditive=async i=>{
+ let t=modalTask(),a=t.additiveRecords?.[i];
+ if(!a)return;
+ if(!confirm(`Excluir o aditivo \"${a.name||'Aditivo'}\" por completo?\n\nO valor, os dados preenchidos e os arquivos vinculados serão removidos.`))return;
+ const files=[...(a.files||[])];
+ t.additiveRecords.splice(i,1);
+ // Depois que o legado já foi convertido em registro, a fonte da verdade é somente additiveRecords.
+ // Ao excluir o último registro, o total deve ser zero — nunca ressuscitar t.additives legado.
+ t.additives=additiveTotal(t);
+ $('#taskModal').dataset.temp=JSON.stringify(t);
+ renderAdditives(t);
+ for(const f of files){try{await deleteCCGEAttachment(f)}catch(err){console.warn('Não foi possível remover um arquivo do aditivo no storage:',err)}}
+ toast('Aditivo excluído. Salve a tarefa para confirmar a alteração.');
+};
 const additiveUploadInProgress={};
 window.attachAdditiveFiles=async i=>{
  if(additiveUploadInProgress[i])return;
@@ -1428,7 +1485,8 @@ async function submitVideos(){
  const input=$('#videoInput'),files=[...(input?.files||[])];if(!files.length)return;
  videoUploadInProgress=true;
  try{
-  const date=$('#videoDate').value||new Date().toISOString().slice(0,10),caption=$('#videoCaption').value;
+  if(!validateCCGEDate($('#videoDate')))return;
+   const date=$('#videoDate').value||new Date().toISOString().slice(0,10),caption=$('#videoCaption').value;
   await uploadFilesToTemp(files,`tarefas/${editingId||'nova'}/videos`,async uploaded=>{let t=modalTask();t.videos=t.videos||[];t.videos.push(...uploaded.map(x=>({...x,date,caption})));$('#taskModal').dataset.temp=JSON.stringify(t);input.value='';renderVideos(t);toast('Vídeo(s) salvo(s) no Supabase')});
  }finally{videoUploadInProgress=false}
 }
@@ -1455,6 +1513,7 @@ async function submitPhotos(){
  const input=$('#photoInput'),files=[...(input?.files||[])];if(!files.length)return;
  photoUploadInProgress=true;
  try{
+   if(!validateCCGEDate($('#photoDate')))return;
    const date=$('#photoDate').value||new Date().toISOString().slice(0,10),caption=$('#photoCaption').value;
    await uploadFilesToTemp(files,`tarefas/${editingId||'nova'}/imagens`,async uploaded=>{let t=modalTask();t.photos=t.photos||[];t.photos.push(...uploaded.map(x=>({...x,date,caption})));$('#taskModal').dataset.temp=JSON.stringify(t);input.value='';renderPhotos(t);toast('Imagem(ns) salva(s) no Supabase')});
  }finally{photoUploadInProgress=false}
@@ -1462,7 +1521,7 @@ async function submitPhotos(){
 $('#addPhotos').onclick=submitPhotos;
 $('#photoInput').addEventListener('change',submitPhotos);
 function renderTaskHistory(t){$('#taskHistory').innerHTML=(t.history||[]).length?t.history.map(h=>`<div class="attention-item"><i class="dot blue"></i><div><b>${esc(h.text)}</b><small>${new Date(h.date).toLocaleString('pt-BR')}</small></div></div>`).join(''):'<div class="empty">Sem histórico nesta tarefa.</div>'}
-$('#saveTaskModal').onclick=()=>{const dialog=$('#taskModal .dialog');const scrollTop=dialog?dialog.scrollTop:0;const activeTab=$('.tabs button.active')?.dataset.tab||'general';let t=normalizeTaskName(modalTask());let old=editingId&&state.tasks.find(x=>x.id===editingId);let temp=JSON.parse($('#taskModal').dataset.temp);t.photos=temp.photos||[];t.mapFiles=temp.mapFiles||[];t.documents=temp.documents||[];t.videos=temp.videos||[];t.invoices=temp.invoices||[];t.deliverables=temp.deliverables||[];t.payments=temp.payments||[];t.milestones=temp.milestones||[];t.additiveRecords=temp.additiveRecords||[];t.additives=additiveTotal(t);t.approvedOverride=false;t.paid=(t.payments||[]).reduce((sum,p)=>sum+Number(p.paidAmount||0),0);t.invoiced=Math.max(Number(t.invoiced||0),(t.invoices||[]).reduce((sum,i)=>sum+Number(i.amount||0),0));t.history=old?.history||[];t.history.unshift({date:new Date().toISOString(),text:old?'Informações da tarefa atualizadas':'Tarefa criada'});if(old)Object.assign(old,t);else{state.tasks.push(t);editingId=t.id}$('#taskModal').dataset.temp=JSON.stringify(t);save(old?`Tarefa atualizada: ${taskDisplayName(t)}`:`Nova tarefa: ${taskDisplayName(t)}`);requestAnimationFrame(()=>{const tab=$(`.tabs button[data-tab="${activeTab}"]`);if(tab&&!tab.classList.contains('active'))tab.click();if(dialog)dialog.scrollTop=scrollTop})};
+$('#saveTaskModal').onclick=()=>{if(!validateCCGEDatesIn($('#taskModal')))return;const dialog=$('#taskModal .dialog');const scrollTop=dialog?dialog.scrollTop:0;const activeTab=$('.tabs button.active')?.dataset.tab||'general';let t=normalizeTaskName(modalTask());let old=editingId&&state.tasks.find(x=>x.id===editingId);let temp=JSON.parse($('#taskModal').dataset.temp);t.photos=temp.photos||[];t.mapFiles=temp.mapFiles||[];t.documents=temp.documents||[];t.videos=temp.videos||[];t.invoices=temp.invoices||[];t.deliverables=temp.deliverables||[];t.payments=temp.payments||[];t.milestones=temp.milestones||[];t.additiveRecords=temp.additiveRecords||[];t.additives=additiveTotal(t);t.approvedOverride=false;t.paid=(t.payments||[]).reduce((sum,p)=>sum+Number(p.paidAmount||0),0);t.invoiced=Math.max(Number(t.invoiced||0),(t.invoices||[]).reduce((sum,i)=>sum+Number(i.amount||0),0));t.history=old?.history||[];t.history.unshift({date:new Date().toISOString(),text:old?'Informações da tarefa atualizadas':'Tarefa criada'});if(old)Object.assign(old,t);else{state.tasks.push(t);editingId=t.id}$('#taskModal').dataset.temp=JSON.stringify(t);save(old?`Tarefa atualizada: ${taskDisplayName(t)}`:`Nova tarefa: ${taskDisplayName(t)}`);requestAnimationFrame(()=>{const tab=$(`.tabs button[data-tab="${activeTab}"]`);if(tab&&!tab.classList.contains('active'))tab.click();if(dialog)dialog.scrollTop=scrollTop})};
 function closeModal(){$('#taskModal').classList.remove('open')}$$('[data-close]').forEach(b=>b.onclick=closeModal);$$('.tabs button').forEach(b=>b.onclick=()=>{$$('.tabs button').forEach(x=>x.classList.remove('active'));$$('.tab-content').forEach(x=>x.classList.remove('active'));b.classList.add('active');$('#tab-'+b.dataset.tab).classList.add('active')});
 function projectNextDue(t){let dates=(t.invoices||[]).filter(x=>x.status!=='Paga'&&x.dueDate).map(x=>x.dueDate).sort();return dates[0]||''}
 function renderProjects(){let q=($('#projectSearch').value||'').toLowerCase(),sf=$('#projectStatusFilter')?.value||'',cf=$('#projectCompanyFilter')?.value||'',df=$('#projectDeadlineFilter')?.value||'',today=new Date();let all=state.tasks.filter(t=>t.nature==='Projeto'&&!t.archived);let companies=[...new Set(all.map(t=>t.company).filter(Boolean))].sort(),cur=$('#projectCompanyFilter')?.value||'';if($('#projectCompanyFilter')){$('#projectCompanyFilter').innerHTML='<option value="">Todas as empresas</option>'+companies.map(x=>`<option ${cur===x?'selected':''}>${esc(x)}</option>`).join('')}
