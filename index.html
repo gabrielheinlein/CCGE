@@ -233,7 +233,18 @@
 .approved-breakdown-card .modal-body{background:#fff!important;padding:24px 26px!important;overflow:auto!important}
 .approved-breakdown-card .table-wrap,.approved-breakdown-card table,.approved-breakdown-card td{background:#fff!important}
 .approved-breakdown-card th{background:#eef5fc!important;color:#0b2b5b!important}
-.approved-breakdown-footer{background:#fff!important;border-top:1px solid #dbe4ef!important;padding:16px 26px!important;margin:0!important}#page-monthly .page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:16px}
+.approved-breakdown-footer{background:#fff!important;border-top:1px solid #dbe4ef!important;padding:16px 26px!important;margin:0!important}
+/* v1.47 — KPI 01/09: resumo executivo, seleção transitória e atraso de pagamentos */
+.command-task-summary-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:16px 0 8px}
+.command-task-summary-grid>div{padding:14px;border:1px solid var(--line);border-radius:13px;background:#f8fbff;min-width:0}
+.command-task-summary-grid small{display:block;color:var(--muted);font-weight:800;margin-bottom:6px}
+.command-task-summary-grid b{display:block;color:var(--navy);font-size:18px;white-space:nowrap}
+.command-task-summary-grid .summary-primary{background:#edf6ff;border-color:#c9def4}
+.command-task-meta{color:var(--muted);font-size:12px;margin:0 0 6px}
+.payment-delay-late{color:var(--red)!important;font-weight:900;white-space:nowrap}
+.payment-delay-ok{color:var(--muted);white-space:nowrap}
+@media(max-width:900px){.command-task-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.command-task-summary-grid>div:last-child{grid-column:1/-1}}
+#page-monthly .page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:16px}
 #page-monthly .page-head h2{margin:0 0 5px;color:var(--navy);font-size:25px}#page-monthly .page-head p{margin:0;color:var(--muted)}
 #newMonthlyContract{border:0;border-radius:11px;padding:10px 14px;background:var(--blue);color:#fff;font-weight:850;cursor:pointer;white-space:nowrap}
 #monthlyMetrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:0 0 18px}
@@ -460,7 +471,7 @@ async function carregarEstadoNuvem() {
 </form></div>
 <div class="app">
 <aside class="sidebar">
- <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.44</small></div></div>
+ <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small>Versão funcional v1.47</small></div></div>
  <nav class="nav" id="nav">
   <button class="active" data-page="home">⌂ <span class="label">Centro de Comando</span></button>
   <button data-page="structure" data-context="work">◫ <span class="label">Etapas</span></button>
@@ -715,7 +726,7 @@ async function carregarEstadoNuvem() {
 <div class="modal" id="metricModal"><div class="dialog"><div class="dialog-head"><h3 id="metricModalTitle">Composição do indicador</h3><button class="icon-btn" id="closeMetricModal">✕</button></div><div class="dialog-body"><p id="metricModalDescription" style="color:var(--muted);margin-top:0"></p><div class="table-card"><div class="table-wrap"><table style="min-width:900px"><thead><tr><th>Natureza</th><th>Etapa</th><th>Tarefa</th><th>Valor</th></tr></thead><tbody id="metricDetailBody"></tbody></table></div></div><div class="toolbar"><span class="spacer"></span><button class="secondary" id="closeMetricModal2">Fechar</button></div></div></div></div>
 <div class="modal approved-breakdown-overlay" id="approvedBreakdownModal">
 <div class="modal-card approved-breakdown-card">
-<div class="modal-head"><h2>Composição financeira da tarefa</h2><button type="button" class="icon-btn" id="closeApprovedBreakdownX">×</button></div>
+<div class="modal-head"><h2>Resumo financeiro da tarefa</h2><button type="button" class="icon-btn" id="closeApprovedBreakdownX">×</button></div>
 <div class="modal-body"><div id="approvedBreakdownBody"></div></div>
 <div class="toolbar approved-breakdown-footer"><span class="spacer"></span><button type="button" class="secondary" id="closeApprovedBreakdownBtn">Fechar</button></div>
 </div></div><div class="toast" id="toast"></div><div id="syncFeedback" style="position:fixed;right:22px;bottom:82px;z-index:10050;background:#0f5132;color:white;padding:10px 14px;border-radius:999px;font-weight:700;font-size:12px;opacity:0;transform:translateY(8px);pointer-events:none;transition:.18s ease">✓ Salvo e indicadores atualizados</div>
@@ -785,7 +796,7 @@ function normalizeState(raw){
  x.suppliers=Array.isArray(x.suppliers)?x.suppliers:[];
  x.suppliers=x.suppliers.map(v=>({...v,status:v.status||'Ativo',contacts:Array.isArray(v.contacts)?v.contacts:[]}));
  x.monthlyContracts=x.monthlyContracts.map(c=>({...c,entries:Array.isArray(c.entries)?c.entries:[],status:c.status||'Ativo',type:c.type||'Recorrente fixo'}));
- x.selected=Array.isArray(x.selected)?x.selected:[]; x.history=Array.isArray(x.history)?x.history:[]; x.mode=['Todos','Obra','Projeto'].includes(x.mode)?x.mode:'Todos';
+ x.selected=[]; /* seleção de análise é transitória e nunca é restaurada ao acessar o sistema */ x.history=Array.isArray(x.history)?x.history:[]; x.mode=['Todos','Obra','Projeto'].includes(x.mode)?x.mode:'Todos';
  x.phases=x.phases.map(v=>({...v,archived:!!v.archived}));
  x.activities=x.activities.map(v=>({...v,archived:!!v.archived}));
  const needsFinancialMigration=x.financialModelVersion!=='1.42';
@@ -895,7 +906,8 @@ function scheduleReactiveRender(){
    if(el){el.textContent='✓ Salvo e indicadores atualizados';el.classList.add('show');setTimeout(()=>el.classList.remove('show'),1800)}
  });
 }
-function persistState(){safeStore.set(JSON.stringify(state));salvarEstadoNuvem(state)}
+function persistentStateSnapshot(){return {...state,selected:[]}}
+function persistState(){const snapshot=persistentStateSnapshot();safeStore.set(JSON.stringify(snapshot));salvarEstadoNuvem(snapshot)}
 function save(msg){
  recomputeDerivedState();
  if(msg){state.history.unshift({date:new Date().toISOString(),text:msg});state.history=state.history.slice(0,40);toast(msg)}
@@ -940,16 +952,15 @@ window.editTaskProgress=id=>{
  save('Percentual de execução atualizado');
  renderAll();
 };
-window.toggleSelected=(id,on)=>{state.selected=state.selected.filter(x=>x!==id);if(on)state.selected.push(id);save();renderHierarchy();renderTasks();updateSelectionUI()}
+window.toggleSelected=(id,on)=>{state.selected=state.selected.filter(x=>x!==id);if(on)state.selected.push(id);renderHierarchy();renderTasks();updateSelectionUI()}
 window.togglePhaseSelection=(phaseId,on)=>{
  const ids=commandTasks().filter(t=>context(t).f.id===phaseId).map(t=>t.id);
  state.selected=state.selected.filter(id=>!ids.includes(id));
  if(on)state.selected=[...new Set([...state.selected,...ids])];
- save(on?'Etapa incluída na análise':'Etapa removida da análise');
  renderHierarchy();renderTasks();updateSelectionUI();
 }
 
-window.analyzeOne=id=>{state.selected=[id];save();nav('charts');$('#chartScope').value='selected';renderCharts()}
+window.analyzeOne=id=>{state.selected=[id];nav('charts');$('#chartScope').value='selected';renderCharts()}
 window.setProgress=(id,k,v)=>{let t=state.tasks.find(x=>x.id===id);if(!t)return;t[k]=Math.max(0,Math.min(100,Number(v)||0));save('Percentual atualizado');renderAll()}
 window.adjustProgress=(id,k,d)=>{let t=state.tasks.find(x=>x.id===id);if(!t)return;window.setProgress(id,k,Number(t[k]||0)+d)}
 window.inlineEditNum=(id,k,v)=>{let t=state.tasks.find(x=>x.id===id);if(!t)return;t[k]=parseMoney(v);save('Valor atualizado');renderAll()}
@@ -1034,15 +1045,18 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#approvedBreakdo
 window.openApprovedBreakdown=(taskId)=>{
  $('#metricModal').classList.remove('open');
  const t=state.tasks.find(x=>x.id===taskId);if(!t)return;
- const c=context(t),ft=financialTruth(t),adds=Array.isArray(t.additiveRecords)?t.additiveRecords:[];
- const recordsTotal=adds.reduce((s,a)=>s+ccgeMoneyNumber(a?.value),0);
- let rows=`<tr><td><b>Valor contratado</b></td><td>${esc(t.map||'Mapa não informado')}</td><td>${dateBR(t.mapApprovalDate||'')}</td><td style="text-align:right">${brl(ft.contracted)}</td><td>${(t.mapFiles||[]).length?'Documento anexado':'—'}</td></tr>`;
- if(adds.length)rows+=adds.map((a,i)=>`<tr><td><b>${esc(a.name||('Aditivo '+(i+1)))}</b></td><td>${esc(a.map||'Mapa não informado')}</td><td>${dateBR(a.approvalDate||'')}</td><td style="text-align:right">${brl(ccgeMoneyNumber(a?.value))}</td><td>${(a.files||[]).length?'Documento anexado':'—'}</td></tr>`).join('');
- else if(ft.additives>0)rows+=`<tr><td><b>Aditivos acumulados</b></td><td>Registro legado</td><td>—</td><td style="text-align:right">${brl(ft.additives)}</td><td>—</td></tr>`;
- $('#approvedBreakdownBody').innerHTML=`<h3 style="margin:0 0 6px">${esc(taskDisplayName(t))}</h3><div class="muted" style="margin-bottom:18px">${esc(c.f.name)}</div>
- <div class="additive-summary" style="margin-bottom:18px"><div><small>Valor contratado</small><b>${brl(ft.contracted)}</b></div><div><small>Aditivos</small><b>${brl(ft.additives)}</b></div><div><small>Contratado atualizado</small><b>${brl(ft.contractUpdated)}</b></div></div>
- <div class="hint" style="margin-bottom:14px">O Centro de Comando consolida exclusivamente o contratado atualizado de cada tarefa: valor contratado + aditivos.</div>
- <div class="table-wrap"><table><thead><tr><th>Composição contratual</th><th>Mapa / documento</th><th>Data de aprovação</th><th style="text-align:right">Valor</th><th>Documento</th></tr></thead><tbody>${rows}<tr><td colspan="3"><b>Contratado atualizado</b></td><td style="text-align:right"><b>${brl(ft.contractUpdated)}</b></td><td></td></tr></tbody></table></div>${adds.length&&Math.abs(recordsTotal-ft.additives)>0.01?`<div class="hint" style="margin-top:12px">Atenção: os aditivos detalhados somam ${brl(recordsTotal)}, enquanto a leitura canônica registra ${brl(ft.additives)}.</div>`:''}<div class="toolbar" style="margin-top:16px"><button class="secondary" onclick="closeApprovedBreakdown();openTask('${t.id}')">Gerenciar tarefa</button></div>`;
+ const c=context(t),ft=financialTruth(t);
+ $('#approvedBreakdownBody').innerHTML=`<h3 style="margin:0 0 5px">${esc(taskDisplayName(t))}</h3>
+ <p class="command-task-meta">${esc(c.f.name)}${t.company?' · '+esc(t.company):''}</p>
+ <div class="command-task-summary-grid">
+  <div><small>Valor contratado</small><b>${brl(ft.contracted)}</b></div>
+  <div><small>Aditivos</small><b>${brl(ft.additives)}</b></div>
+  <div class="summary-primary"><small>Contratado atualizado</small><b>${brl(ft.contractUpdated)}</b></div>
+  <div><small>Pago</small><b>${brl(ft.paid)}</b></div>
+  <div><small>Saldo contratual</small><b>${brl(Math.max(0,ft.contractBalance))}</b></div>
+ </div>
+ <div class="hint" style="margin-top:14px">Resumo executivo. Os detalhes de contrato, documentos, aditivos e pagamentos permanecem no gerenciamento da tarefa.</div>
+ <div class="toolbar" style="margin-top:16px"><span class="spacer"></span><button class="secondary" onclick="closeApprovedBreakdown();openTask('${t.id}')">Ver tarefa completa</button></div>`;
  $('#approvedBreakdownModal').classList.add('open');
 };
 window.openMetricDetail=key=>{
@@ -1051,7 +1065,7 @@ window.openMetricDetail=key=>{
  const [title,desc]=meta[key]||meta.contracted;
  const scope=$('#commandScope').value,label=scope==='Todos'?'Geral':scope==='Obra'?'Obras':'Projetos';$('#metricModalTitle').textContent=title;$('#metricModalDescription').textContent=desc+' na visão '+label+' do Centro de Comando.';
  $('#metricDetailBody').innerHTML=arr.map(t=>{let c=context(t),v=key==='contracted'?financialTruth(t).contracted:key==='updated'?financialTruth(t).contractUpdated:key==='paid'?financialTruth(t).paid:key==='additives'?financialTruth(t).additives:0;return `<tr><td>${esc(t.nature)}</td><td>${esc(c.f.name)}</td><td><button type="button" class="entity-link metric-task-link" data-task-id="${esc(t.id)}" style="border:0;background:transparent;padding:0;text-align:left">${esc(taskDisplayName(t))}</button></td><td>${brl(v)}</td></tr>`}).join('')||'<tr><td colspan="4"><div class="empty">Nenhum registro no filtro atual.</div></td></tr>';
- $$('.metric-task-link').forEach(link=>link.addEventListener('click',()=>{const id=link.dataset.taskId;$('#metricModal').classList.remove('open');setTimeout(()=>openTask(id),0)}));
+ $$('.metric-task-link').forEach(link=>link.addEventListener('click',()=>{const id=link.dataset.taskId;$('#metricModal').classList.remove('open');setTimeout(()=>{if(key==='updated')openApprovedBreakdown(id);else openTask(id)},0)}));
  $('#metricModal').classList.add('open');
 };
 function renderAttention(){
@@ -1184,6 +1198,7 @@ window.openNewTaskForPhase=id=>openTask(null,null,'Obra',id);
 function openTask(id,activityId,forcedNature,forcedPhaseId){
  editingId=id;
  let t=id?normalizeTaskName(state.tasks.find(x=>x.id===id)):{id:uid('t'),phaseId:forcedPhaseId||'',activityId:'',name:'',nature:forcedNature||'Obra',status:'Planejada',priority:'Normal',owner:'',blocked:false,blocker:'',blockedBy:'',lastUpdate:'',nextAction:'',startPlan:'',endPlan:'',startReal:'',endReal:'',requestDate:'',contractDate:'',revisedDelivery:'',actualDelivery:'',estimated:0,approved:0,contracted:0,additives:0,invoiced:0,paid:0,planned:0,real:0,company:'',internalOwner:'',discipline:'',scope:'',description:'',notes:'',map:'',mapApprovalDate:'',mapFiles:[],invoices:[],deliverables:[],payments:[],milestones:[],additiveRecords:[],paymentMethod:'',paymentTerms:'',paymentCount:'',custom:{},photos:[],documents:[],videos:[],history:[],archived:false};
+ if(!id)t.company=''; /* novo registro: fornecedor sempre começa em branco */
  t.payments=Array.isArray(t.payments)?t.payments:[];t.milestones=Array.isArray(t.milestones)?t.milestones:[];t.additiveRecords=Array.isArray(t.additiveRecords)?t.additiveRecords:[];
  const legacyAdditives=ccgeMoneyNumber(t.additives);
  if(!t.additiveRecords.length&&legacyAdditives>0)t.additiveRecords=[{id:uid('ad'),name:'Aditivo legado',map:'',approvalDate:'',value:legacyAdditives,notes:'Valor migrado automaticamente do campo consolidado anterior.',files:[],legacy:true}];
@@ -1195,7 +1210,7 @@ function openTask(id,activityId,forcedNature,forcedPhaseId){
    if(tp==='nature')return `<div class="field ${cls}"><label>${n}</label><select data-key="${k}"><option ${t[k]==='Obra'?'selected':''}>Obra</option><option ${t[k]==='Projeto'?'selected':''}>Projeto</option><option ${t[k]==='Outro'?'selected':''}>Outro</option></select></div>`;
    if(tp==='status')return `<div class="field ${cls}"><label>${n}</label><select data-key="${k}">${['Planejada','Em andamento','Atenção','Concluída'].map(v=>`<option ${t[k]===v?'selected':''}>${v}</option>`).join('')}</select></div>`;if(tp==='priority')return `<div class="field ${cls}"><label>${n}</label><select data-key="${k}">${['Crítica','Alta','Normal','Baixa'].map(v=>`<option ${t[k]===v?'selected':''}>${v}</option>`).join('')}</select><small style="color:var(--muted)">Usada em alertas e ordenações.</small></div>`;
    if(tp==='money')return `<div class="field ${cls}"><label>${n}</label><input class="money-input" data-key="${k}" data-money="true" type="text" inputmode="decimal" value="${k==='estimated'&&!t[k]?'':esc(brl(t[k]))}">${k==='estimated'?'<small style="color:var(--muted)">Opcional. Referência de planejamento; não alimenta o Centro de Comando.</small>':''}</div>`;
-   return `<div class="field ${cls}"><label>${n}</label><input data-key="${k}" type="${tp}" ${tp==='date'?'min="1900-01-01" max="2100-12-31"':''} value="${esc(k==='name'?taskBaseName(t):t[k])}" ${['startPlan','endPlan'].includes(k)?`data-original="${esc(t[k]||'')}" onchange="this.dataset.touched='1'"`:''}></div>`;
+   return `<div class="field ${cls}"><label>${n}</label><input data-key="${k}" type="${tp}" ${tp==='date'?'min="1900-01-01" max="2100-12-31"':''} ${k==='company'?'autocomplete="off"':''} value="${esc(k==='name'?taskBaseName(t):t[k]||'')}" ${['startPlan','endPlan'].includes(k)?`data-original="${esc(t[k]||'')}" onchange="this.dataset.touched='1'"`:''}></div>`;
  }).join('')+state.customFields.map(f=>`<div class="field"><label>${esc(f.name)}</label><input data-custom="${f.id}" value="${esc(t.custom?.[f.id]||'')}"></div>`).join('');
  const applyNature=()=>{const project=$('#taskForm [data-key="nature"]').value==='Projeto';$$('.project-only').forEach(x=>x.classList.toggle('scope-hidden',!project));$$('.work-only').forEach(x=>x.classList.toggle('scope-hidden',project));$('#taskModalTitle').textContent=editingId?(project?'Gerenciar projeto':'Gerenciar tarefa'):(project?'Novo projeto':'Nova tarefa')};
  const natureSelect=$('#taskForm [data-key="nature"]');if(natureSelect)natureSelect.onchange=applyNature;applyNature()
@@ -1251,12 +1266,24 @@ function modalTask(){
 }
 
 function paymentCommitmentKey(p){return p.commitmentId||p.id}
+function paymentDateSerial(iso){
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(String(iso||'')))return null;
+ const [y,m,d]=String(iso).split('-').map(Number);return Math.floor(Date.UTC(y,m-1,d)/86400000);
+}
+function paymentDelayDays(p,now=new Date()){
+ const due=paymentDateSerial(p?.dueDate);if(due===null)return null;
+ let end=null;
+ if(p?.paidDate)end=paymentDateSerial(p.paidDate);
+ if(end===null)end=Math.floor(Date.UTC(now.getFullYear(),now.getMonth(),now.getDate())/86400000);
+ return Math.max(0,end-due);
+}
+window.paymentDelayDays=paymentDelayDays;
 function renderPayments(t){
  let a=t.payments||[], groups=[];
  a.forEach((p,i)=>{const k=paymentCommitmentKey(p);let g=groups.find(x=>x.key===k);if(!g){g={key:k,name:p.commitmentName||p.description||'Pagamento',method:p.commitmentMethod||'',notes:p.commitmentNotes||'',items:[]};groups.push(g)}g.items.push({...p,_index:i})});
  $('#paymentList').innerHTML=groups.length?groups.map(g=>{
    const planned=g.items.reduce((sum,p)=>sum+Number(p.amount||0),0),paid=g.items.reduce((sum,p)=>sum+Number(p.paidAmount||0),0),paidN=g.items.filter(paymentIsPaid).length,lateN=g.items.filter(p=>!paymentIsPaid(p)&&p.dueDate&&new Date(p.dueDate+'T23:59:59')<new Date()).length;
-   return `<div class="commitment-card"><div class="commitment-head"><div class="commitment-topline"><div class="commitment-identity"><b class="commitment-title">${esc(g.name)}</b><small>${g.items.length} ${g.items.length===1?'pagamento':'parcelas/medições'}${g.method?' · '+esc(g.method):''}${lateN?' · '+lateN+' vencida(s)':''}</small></div><button type="button" class="secondary commitment-manage" onclick="openPaymentEditorByKey('${g.key}')">Gerenciar</button></div><div class="commitment-summary"><div class="commitment-metric"><span>Programado</span><b>${brl(planned)}</b></div><div class="commitment-metric"><span>Pago</span><b>${brl(paid)}</b></div><div class="commitment-metric"><span>Saldo</span><b>${brl(Math.max(0,planned-paid))}</b></div><div class="commitment-metric"><span>Situação</span><b>${paidN}/${g.items.length} pagos</b></div><button type="button" class="danger commitment-remove" onclick="removePaymentCommitment('${g.key}')">Remover</button></div></div><div class="payment-table-wrap" style="margin:0;border:0;border-radius:0"><table class="payment-table"><thead><tr><th>Parcela / medição</th><th>Vencimento</th><th>Previsto</th><th>Valor pago</th><th>Pago em</th><th>Status</th><th>NF / boleto</th></tr></thead><tbody>${g.items.map(p=>`<tr><td><b>${esc(p.installmentLabel||p.description||'—')}</b></td><td>${p.dueDate?dateBR(p.dueDate):'—'}</td><td>${brl(p.amount||0)}</td><td>${Number(p.paidAmount||0)?brl(p.paidAmount):'—'}</td><td>${p.paidDate?dateBR(p.paidDate):'—'}</td><td>${badge(p.status||'Previsto')}</td><td>${esc(p.documentRef||'—')}</td></tr>`).join('')}</tbody></table></div></div>`
+   return `<div class="commitment-card"><div class="commitment-head"><div class="commitment-topline"><div class="commitment-identity"><b class="commitment-title">${esc(g.name)}</b><small>${g.items.length} ${g.items.length===1?'pagamento':'parcelas/medições'}${g.method?' · '+esc(g.method):''}${lateN?' · '+lateN+' vencida(s)':''}</small></div><button type="button" class="secondary commitment-manage" onclick="openPaymentEditorByKey('${g.key}')">Gerenciar</button></div><div class="commitment-summary"><div class="commitment-metric"><span>Programado</span><b>${brl(planned)}</b></div><div class="commitment-metric"><span>Pago</span><b>${brl(paid)}</b></div><div class="commitment-metric"><span>Saldo</span><b>${brl(Math.max(0,planned-paid))}</b></div><div class="commitment-metric"><span>Situação</span><b>${paidN}/${g.items.length} pagos</b></div><button type="button" class="danger commitment-remove" onclick="removePaymentCommitment('${g.key}')">Remover</button></div></div><div class="payment-table-wrap" style="margin:0;border:0;border-radius:0"><table class="payment-table"><thead><tr><th>Parcela / medição</th><th>Vencimento</th><th>Dias em atraso</th><th>Previsto</th><th>Valor pago</th><th>Pago em</th><th>Status</th><th>NF / boleto</th></tr></thead><tbody>${g.items.map(p=>{const delay=paymentDelayDays(p);return `<tr><td><b>${esc(p.installmentLabel||p.description||'—')}</b></td><td>${p.dueDate?dateBR(p.dueDate):'—'}</td><td class="${delay>0?'payment-delay-late':'payment-delay-ok'}">${delay>0?delay+' dia'+(delay===1?'':'s'):'—'}</td><td>${brl(p.amount||0)}</td><td>${Number(p.paidAmount||0)?brl(p.paidAmount):'—'}</td><td>${p.paidDate?dateBR(p.paidDate):'—'}</td><td>${badge(p.status||'Previsto')}</td><td>${esc(p.documentRef||'—')}</td></tr>`}).join('')}</tbody></table></div></div>`
  }).join(''):'<div class="empty" style="padding:18px;margin-top:12px">Nenhuma programação financeira cadastrada. Use “+ Adicionar pagamento”.</div>';
 }
 
@@ -1758,7 +1785,7 @@ $('#addPhase').onclick=addPhase;$('#collapseAllPhases').onclick=collapseAllPhase
  const attentionEl=$('#attention');const attentionButton=attentionEl?attentionEl.closest('.card')?.querySelector('[data-goto]'):null;if(attentionButton){attentionButton.dataset.goto=isProject?'projects':'tasks';attentionButton.textContent=isProject?'Ver projetos':'Ver tarefas'}
 }
 function setCommandScope(scope){state.mode=scope;$('#commandScope').value=scope;persistState();$$('.scope-pill').forEach(b=>b.classList.toggle('active',b.dataset.scope===scope));$('#commandTitle').textContent='Centro de Comando — '+(scope==='Todos'?'Geral':scope==='Obra'?'Obras':'Projetos');$('#commandPrimaryAction').textContent=scope==='Projeto'?'Gerenciar projetos':scope==='Obra'?'Gerenciar tarefas da obra':'Gerenciar tarefas';$('#commandPrimaryAction').dataset.goto=scope==='Projeto'?'projects':'tasks';applyContextUI(scope);renderAll()}
-$$('.scope-pill').forEach(b=>b.onclick=()=>setCommandScope(b.dataset.scope));$('#commandScope').onchange=()=>setCommandScope($('#commandScope').value);$('#generateChart').onclick=renderCharts;$('#chartMetric').onchange=renderCharts;$('#chartScope').onchange=renderCharts;$('#chartGroup').onchange=renderCharts;$('#clearSelected').onclick=()=>{state.selected=[];save('Seleção de análise limpa');renderAll()};$('#structureClearSelection').onclick=()=>{state.selected=[];save('Seleção de análise limpa');renderAll()};$('#structureGenerateAnalysis').onclick=openSelectedAnalysis;$('#compareSelected').onclick=openSelectedAnalysis;
+$$('.scope-pill').forEach(b=>b.onclick=()=>setCommandScope(b.dataset.scope));$('#commandScope').onchange=()=>setCommandScope($('#commandScope').value);$('#generateChart').onclick=renderCharts;$('#chartMetric').onchange=renderCharts;$('#chartScope').onchange=renderCharts;$('#chartGroup').onchange=renderCharts;$('#clearSelected').onclick=()=>{state.selected=[];renderAll()};$('#structureClearSelection').onclick=()=>{state.selected=[];renderAll()};$('#structureGenerateAnalysis').onclick=openSelectedAnalysis;$('#compareSelected').onclick=openSelectedAnalysis;
 $('#exportBtn').onclick=()=>{let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(state,null,2)],{type:'application/json'}));a.download='backup_gestao_empreendimento.json';a.click();URL.revokeObjectURL(a.href);toast('Backup exportado')};$('#importBtn').onclick=()=>$('#importFile').click();$('#importFile').onchange=e=>{let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{state=JSON.parse(r.result);save('Backup importado');renderAll()}catch(err){toast('Arquivo inválido')}};r.readAsText(f)};$('#resetBtn').onclick=()=>{if(confirm('Restaurar os dados demonstrativos?')){state=normalizeState(seed());save('Base demonstrativa restaurada');renderAll()}};
 $('#closeAnalysisBuilder').onclick=$('#cancelAnalysisBuilder').onclick=()=>$('#analysisBuilderModal').classList.remove('open');
 $('#analysisBuilderModal').onclick=e=>{if(e.target.id==='analysisBuilderModal')$('#analysisBuilderModal').classList.remove('open')};
@@ -1855,6 +1882,7 @@ setLoginLoading(true);try{
     return;
   }
 
+  state.selected=[]; /* nenhuma ação/análise pré-selecionada ao acessar o CCGE */
   ccgeBootstrapped=true;
   showAuthGate(false);
   setCommandScope(state.mode||'Todos');
