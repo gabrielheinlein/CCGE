@@ -384,8 +384,8 @@
 @media(max-width:820px){#metricModal .dialog{width:calc(100vw - 20px)!important;min-width:0!important}#metricModal .dialog-body{overflow-x:auto}#metricModal table{min-width:760px!important}}
 
 /* v1.55 — Contratado atualizado: largura equilibrada + redimensionamento real */
-#metricModal .dialog{width:min(1180px,calc(100vw - 48px))!important;max-width:calc(100vw - 24px)!important;min-width:min(820px,calc(100vw - 24px))!important;resize:none!important;overflow:visible!important;position:relative}
-#metricModal .dialog-body{overflow-x:auto!important}
+#metricModal .dialog{width:min(1180px,calc(100vw - 48px))!important;max-width:calc(100vw - 16px)!important;min-width:min(820px,calc(100vw - 16px))!important;resize:none!important;overflow:visible!important;position:relative}
+#metricModal .dialog-body{overflow:auto!important;max-height:calc(100vh - 140px)}
 #metricModal .table-card{width:max-content;min-width:100%;max-width:none}
 #metricModal .table-wrap{width:max-content;min-width:100%;max-width:none;overflow-x:visible}
 #metricModal table{width:auto!important;min-width:0!important;table-layout:fixed!important}
@@ -393,10 +393,10 @@
 #metricModal th:nth-child(2),#metricModal td:nth-child(2){width:240px;min-width:240px;max-width:240px}
 #metricModal th:nth-child(3),#metricModal td:nth-child(3){width:610px;min-width:610px;max-width:610px;white-space:normal}
 #metricModal th:nth-child(4),#metricModal td:nth-child(4){width:170px;min-width:170px;max-width:170px;white-space:nowrap;text-align:right}
-#metricModal .metric-resize-handle{position:absolute;right:-5px;bottom:-5px;width:20px;height:20px;cursor:nwse-resize;z-index:20;border-right:3px solid #8fa3bd;border-bottom:3px solid #8fa3bd;border-radius:0 0 7px 0;opacity:.75}
-#metricModal .metric-resize-handle:hover{opacity:1;border-color:#2f5fb3}
-#metricModal.resizing{user-select:none}
-@media(max-width:900px){#metricModal .dialog{width:calc(100vw - 20px)!important;min-width:0!important}#metricModal .metric-resize-handle{display:none}}
+#metricModal .metric-resize-handle{display:none!important}
+#metricModal.resizing{user-select:none!important;cursor:inherit}
+#metricModal.resizing *{user-select:none!important}
+@media(max-width:900px){#metricModal .dialog{width:calc(100vw - 20px)!important;min-width:0!important;max-width:calc(100vw - 8px)!important}}
 
 </style>
 
@@ -1964,7 +1964,7 @@ $('#closeAnalysisBuilder').onclick=$('#cancelAnalysisBuilder').onclick=()=>$('#a
 $('#analysisBuilderModal').onclick=e=>{if(e.target.id==='analysisBuilderModal')$('#analysisBuilderModal').classList.remove('open')};
 $('#confirmAnalysisBuilder').onclick=()=>{$('#chartMetric').value=$('#builderMetric').value;$('#chartGroup').value=$('#builderGroup').value;$('#chartScope').value='selected';$('#analysisBuilderModal').classList.remove('open');nav('charts');renderCharts();};
 $('#closeMetricModal').onclick=$('#closeMetricModal2').onclick=()=>$('#metricModal').classList.remove('open');
-$('#metricModal').onclick=e=>{if(e.target.id==='metricModal')$('#metricModal').classList.remove('open')};
+$('#metricModal').onclick=e=>{ /* v1.56: clique fora não fecha; use X ou Fechar */ };
 $('#globalSearch').onkeydown=e=>{if(e.key==='Enter')openGlobalSearch(e.target.value)};$('#closeGlobalSearch').onclick=()=>$('#globalSearchModal').classList.remove('open');$('#globalSearchModal').onclick=e=>{if(e.target.id==='globalSearchModal')$('#globalSearchModal').classList.remove('open')};
 
 
@@ -2099,19 +2099,48 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 
 </script>
 <script>
-// v1.55 — redimensionamento manual real do modal de métricas
+// v1.56 — redimensionamento completo do modal de métricas por todas as bordas e cantos
 (function(){
+ const EDGE=12, VIEW_GAP=4, MIN_W=720, MIN_H=320;
  function setupMetricResize(){
-  const modal=document.getElementById('metricModal'), dialog=modal?.querySelector('.dialog'), handle=document.getElementById('metricResizeHandle');
-  if(!modal||!dialog||!handle||handle.dataset.ready)return;
-  handle.dataset.ready='1';
-  let startX=0,startY=0,startW=0,startH=0;
-  const move=e=>{const maxW=Math.max(320,window.innerWidth-24),maxH=Math.max(320,window.innerHeight-24);const minW=Math.min(820,maxW);let w=Math.max(minW,Math.min(maxW,startW+(e.clientX-startX)));let h=Math.max(360,Math.min(maxH,startH+(e.clientY-startY)));dialog.style.setProperty('width',w+'px','important');dialog.style.height=h+'px';dialog.style.maxHeight=maxH+'px';};
-  const up=()=>{document.removeEventListener('mousemove',move);document.removeEventListener('mouseup',up);modal.classList.remove('resizing')};
-  handle.addEventListener('mousedown',e=>{if(window.innerWidth<=900)return;e.preventDefault();const r=dialog.getBoundingClientRect();startX=e.clientX;startY=e.clientY;startW=r.width;startH=r.height;modal.classList.add('resizing');document.addEventListener('mousemove',move);document.addEventListener('mouseup',up)});
+  const modal=document.getElementById('metricModal'), dialog=modal?.querySelector('.dialog');
+  if(!modal||!dialog||dialog.dataset.resizeReady)return;
+  dialog.dataset.resizeReady='1';
+  let active=null;
+  function edgeAt(e){
+   if(window.innerWidth<=900)return '';
+   const r=dialog.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+   let h='',v='';
+   if(x>=0&&x<=EDGE)h='w'; else if(x>=r.width-EDGE&&x<=r.width)h='e';
+   if(y>=0&&y<=EDGE)v='n'; else if(y>=r.height-EDGE&&y<=r.height)v='s';
+   return v+h;
+  }
+  function cursorFor(edge){return ({n:'ns-resize',s:'ns-resize',e:'ew-resize',w:'ew-resize',ne:'nesw-resize',sw:'nesw-resize',nw:'nwse-resize',se:'nwse-resize'})[edge]||''}
+  function hover(e){if(active)return;dialog.style.cursor=cursorFor(edgeAt(e))}
+  function begin(e){
+   if(e.button!==0)return;const edge=edgeAt(e);if(!edge)return;
+   e.preventDefault();e.stopPropagation();const r=dialog.getBoundingClientRect();
+   dialog.style.setProperty('position','fixed','important');dialog.style.setProperty('left',r.left+'px','important');dialog.style.setProperty('top',r.top+'px','important');dialog.style.setProperty('right','auto','important');dialog.style.setProperty('bottom','auto','important');dialog.style.setProperty('width',r.width+'px','important');dialog.style.setProperty('height',r.height+'px','important');dialog.style.setProperty('max-width','none','important');dialog.style.setProperty('max-height','none','important');
+   active={edge,startX:e.clientX,startY:e.clientY,left:r.left,top:r.top,width:r.width,height:r.height};modal.classList.add('resizing');document.body.style.cursor=cursorFor(edge);
+   document.addEventListener('mousemove',move,true);document.addEventListener('mouseup',end,true);
+  }
+  function move(e){
+   if(!active)return;e.preventDefault();
+   const dx=e.clientX-active.startX,dy=e.clientY-active.startY,edge=active.edge,maxRight=window.innerWidth-VIEW_GAP,maxBottom=window.innerHeight-VIEW_GAP;
+   let left=active.left,top=active.top,width=active.width,height=active.height;
+   if(edge.includes('e'))width=active.width+dx;if(edge.includes('s'))height=active.height+dy;if(edge.includes('w')){left=active.left+dx;width=active.width-dx}if(edge.includes('n')){top=active.top+dy;height=active.height-dy}
+   const minW=Math.min(MIN_W,window.innerWidth-2*VIEW_GAP),minH=Math.min(MIN_H,window.innerHeight-2*VIEW_GAP);
+   if(width<minW){if(edge.includes('w'))left-=minW-width;width=minW}if(height<minH){if(edge.includes('n'))top-=minH-height;height=minH}
+   if(left<VIEW_GAP){if(edge.includes('w'))width+=left-VIEW_GAP;left=VIEW_GAP}if(top<VIEW_GAP){if(edge.includes('n'))height+=top-VIEW_GAP;top=VIEW_GAP}
+   if(left+width>maxRight)width=maxRight-left;if(top+height>maxBottom)height=maxBottom-top;width=Math.max(minW,width);height=Math.max(minH,height);
+   dialog.style.setProperty('left',left+'px','important');dialog.style.setProperty('top',top+'px','important');dialog.style.setProperty('width',width+'px','important');dialog.style.setProperty('height',height+'px','important');
+   const body=dialog.querySelector('.dialog-body');if(body)body.style.setProperty('max-height',Math.max(120,height-78)+'px','important');
+  }
+  function end(e){if(!active)return;e.preventDefault();active=null;modal.classList.remove('resizing');document.body.style.cursor='';dialog.style.cursor='';document.removeEventListener('mousemove',move,true);document.removeEventListener('mouseup',end,true)}
+  dialog.addEventListener('mousemove',hover);dialog.addEventListener('mousedown',begin);dialog.addEventListener('mouseleave',()=>{if(!active)dialog.style.cursor=''})
+  dialog.addEventListener('click',e=>e.stopPropagation());modal.addEventListener('mousedown',e=>{if(e.target===modal)e.stopPropagation()});
  }
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',setupMetricResize);else setupMetricResize();
 })();
-
 </script>
 </body></html>
