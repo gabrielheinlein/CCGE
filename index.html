@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- CCGE v1.59: revisão visual global de modais/botões + Medições/Custos Reais em cards responsivos. -->
+<!-- CCGE v1.59.1: correção de inicialização/login + revisão visual global de modais/botões + Medições/Custos Reais. -->
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
@@ -472,25 +472,7 @@ async function uploadCCGEFile(file,folder='geral'){
 async function openCCGEAttachment(f){
   if(!f){toast('Arquivo não disponível.');return false}
   const preview=window.open('about:blank','_blank');
-  if(preview){try{preview.document.write('<!doctype html><title>CCGE</title><body style="font-family:Arial;padding:24px">Carregando arquivo...<script>
-(function setupGlobalModalExpansion(){
- function install(){
-  document.querySelectorAll('.modal .dialog').forEach(dialog=>{
-   if(dialog.dataset.globalExpandReady)return;dialog.dataset.globalExpandReady='1';
-   const head=dialog.querySelector(':scope > .dialog-head');if(!head)return;
-   let actions=head.querySelector('.dialog-head-actions');
-   if(!actions){actions=document.createElement('div');actions.className='dialog-head-actions';[...head.children].filter(el=>el.matches('button,[data-close]')).forEach(el=>actions.appendChild(el));head.appendChild(actions)}
-   const expand=document.createElement('button');expand.type='button';expand.className='icon-btn ccge-expand-btn';expand.title='Expandir janela';expand.setAttribute('aria-label','Expandir janela');expand.textContent='↗';
-   expand.onclick=e=>{e.preventDefault();e.stopPropagation();const on=dialog.classList.toggle('ccge-expanded');if(on){['left','top','right','bottom','width','height','max-width','max-height','position'].forEach(p=>dialog.style.removeProperty(p));const body=dialog.querySelector('.dialog-body');if(body)body.style.removeProperty('max-height')}expand.textContent=on?'↙':'↗';expand.title=on?'Restaurar janela':'Expandir janela';expand.setAttribute('aria-label',expand.title)};
-   actions.insertBefore(expand,actions.firstChild);
-  });
- }
- if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();
- new MutationObserver(install).observe(document.body,{childList:true,subtree:true});
-})();
-</script>
-
-</body>');preview.document.close()}catch(e){}}
+  if(preview){try{preview.document.write('<!doctype html><title>CCGE</title><body style="font-family:Arial;padding:24px">Carregando arquivo...</body>');preview.document.close()}catch(e){}}
   try{
     if(f.storagePath){
       const bucket=f.storageBucket||CCGE_STORAGE_BUCKET;
