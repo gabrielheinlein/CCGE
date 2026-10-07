@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- CCGE v1.59.5: controle de versão e atualização automática segura + correções funcionais v1.59.4. -->
+<!-- CCGE v1.59.5.1: atualização automática segura corrigida + correções funcionais v1.59.4. -->
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
@@ -511,42 +511,7 @@ async function uploadCCGEFile(file,folder='geral'){
 async function openCCGEAttachment(f){
   if(!f){toast('Arquivo não disponível.');return false}
   const preview=window.open('about:blank','_blank');
-  if(preview){try{preview.document.write('<!doctype html><title>CCGE</title><body style="font-family:Arial;padding:24px">Carregando arquivo...
-<script>
-/* v1.59.5 — atualização automática segura, sem depender de F5 */
-(function ccgeVersionWatch(){
- const LOCAL_VERSION='1.59.5';
- let busy=false;
- function hasUnsavedWork(){
-  const tm=document.getElementById('taskModal');
-  return !!(tm && tm.classList.contains('show') && tm.dataset.temp);
- }
- async function checkVersion(){
-  if(busy || document.visibilityState!=='visible') return;
-  busy=true;
-  try{
-   const r=await fetch(location.pathname+'?ccge_version_check='+Date.now(),{cache:'no-store',headers:{'Cache-Control':'no-cache'}});
-   if(!r.ok)return;
-   const html=await r.text();
-   const m=html.match(/CCGE v(\d+\.\d+\.\d+):/);
-   if(!m || m[1]===LOCAL_VERSION)return;
-   if(hasUnsavedWork()){
-    toast(`Nova versão ${m[1]} disponível. Salve ou cancele a edição; a atualização será aplicada em seguida.`);
-    return;
-   }
-   sessionStorage.setItem('ccge_last_reload_version',m[1]);
-   location.replace(location.pathname+'?v='+encodeURIComponent(m[1]));
-  }catch(e){ /* rede indisponível: mantém a versão atual sem interromper o usuário */ }
-  finally{busy=false}
- }
- window.addEventListener('focus',checkVersion);
- document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkVersion()});
- setInterval(checkVersion,120000);
- setTimeout(checkVersion,2500);
-})();
-</script>
-
-</body>');preview.document.close()}catch(e){}}
+  if(preview){try{preview.document.write('<!doctype html><title>CCGE</title><body style="font-family:Arial;padding:24px">Carregando arquivo...</body>');preview.document.close()}catch(e){}}
   try{
     if(f.storagePath){
       const bucket=f.storageBucket||CCGE_STORAGE_BUCKET;
@@ -2354,6 +2319,42 @@ supabaseClient.auth.onAuthStateChange((event)=>{
  }
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();
  new MutationObserver(install).observe(document.body,{childList:true,subtree:true});
+})();
+</script>
+
+
+<script>
+/* v1.59.5.1 — atualização automática segura, sem depender de F5 */
+(function ccgeVersionWatch(){
+ const LOCAL_VERSION='1.59.5.1';
+ let busy=false;
+ function hasUnsavedWork(){
+   const tm=document.getElementById('taskModal');
+   return !!(tm && tm.classList.contains('open') && tm.dataset.temp);
+ }
+ async function checkVersion(){
+   if(busy || document.visibilityState!=='visible')return;
+   busy=true;
+   try{
+     const base=location.pathname || '/';
+     const sep=base.includes('?')?'&':'?';
+     const r=await fetch(base+sep+'ccge_version_check='+Date.now(),{cache:'no-store'});
+     if(!r.ok)return;
+     const html=await r.text();
+     const m=html.match(/CCGE v(\d+\.\d+\.\d+(?:\.\d+)?):/);
+     if(!m || m[1]===LOCAL_VERSION)return;
+     if(hasUnsavedWork()){
+       toast(`Nova versão ${m[1]} disponível. Salve ou cancele a edição para atualizar.`);
+       return;
+     }
+     location.replace(base+'?v='+encodeURIComponent(m[1]));
+   }catch(e){console.warn('Verificação de versão indisponível.',e)}
+   finally{busy=false}
+ }
+ window.addEventListener('focus',checkVersion);
+ document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkVersion()});
+ setInterval(checkVersion,120000);
+ setTimeout(checkVersion,2500);
 })();
 </script>
 
