@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- CCGE v1.59.1: correção de inicialização/login + revisão visual global de modais/botões + Medições/Custos Reais. -->
+<!-- CCGE v1.59.5: controle de versão e atualização automática segura + correções funcionais v1.59.4. -->
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
@@ -429,6 +429,45 @@ button.primary,button.secondary,button.danger,.primary,.secondary,.danger{min-he
 @media(max-width:900px){.invoice-grid-top,.invoice-grid-main{grid-template-columns:repeat(2,minmax(0,1fr))}.invoice-span-2{grid-column:1/-1}}
 @media(max-width:620px){.invoice-grid-top,.invoice-grid-main{grid-template-columns:1fr}.invoice-span-2,.invoice-span-all{grid-column:auto}.invoice-card-head,.invoice-attached{align-items:flex-start;flex-wrap:wrap}.invoice-attached>div{width:100%}}
 
+
+/* v1.59.2 — estabilização visual de Medições/Custos Reais */
+#tab-costs{overflow-x:hidden}#tab-costs .invoice-card,#tab-costs .invoice-grid,#tab-costs .field{min-width:0}
+.ccge-competence-text{text-align:left}.ccge-calendar-btn{font-size:15px;display:grid;place-items:center;padding:0!important}
+@media(max-width:1100px){#tab-costs .invoice-grid-main{grid-template-columns:repeat(2,minmax(0,1fr))}#tab-costs .invoice-grid-main .invoice-span-2{grid-column:1/-1}}
+@media(max-width:700px){#tab-costs .subsection-head{align-items:flex-start;flex-direction:column}#tab-costs .subsection-head #addInvoice{align-self:flex-start}#tab-costs .invoice-grid-top,#tab-costs .invoice-grid-main{grid-template-columns:1fr}#tab-costs .invoice-span-2,#tab-costs .invoice-span-all{grid-column:auto}}
+
+
+/* v1.59.3 — premissa global: todas as janelas podem ser redimensionadas pelo usuário */
+.modal .dialog{
+  resize:both!important;
+  overflow:auto!important;
+  min-width:min(420px,calc(100vw - 24px));
+  min-height:220px;
+  max-width:calc(100vw - 16px)!important;
+  max-height:calc(100vh - 16px)!important;
+}
+.modal .dialog.ccge-expanded{resize:none!important}
+#taskModal .dialog{width:min(1180px,calc(100vw - 32px))}
+#tab-costs .invoice-card{overflow:hidden}
+#tab-costs .invoice-upload-block{width:100%;min-width:0}
+#tab-costs .invoice-dropzone{box-sizing:border-box;width:100%;max-width:100%}
+#tab-costs .invoice-attached{box-sizing:border-box;width:100%;max-width:100%;min-width:0}
+#tab-costs .invoice-attached>span{min-width:0;overflow:hidden}
+#tab-costs .invoice-attached>span b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#tab-costs .invoice-file-actions{display:flex;gap:8px;align-items:center;justify-content:flex-end;flex:0 0 auto}
+#tab-costs .invoice-card-head .danger{min-width:auto!important;width:auto!important}
+@media(max-width:620px){
+ #tab-costs .invoice-attached{display:grid;grid-template-columns:1fr}
+ #tab-costs .invoice-file-actions{justify-content:flex-start}
+}
+
+
+/* v1.59.4 — cabeçalho principal sem sobreposição */
+header .actions,.topbar .actions,.toolbar-actions{display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:8px!important;flex-wrap:wrap!important}
+header .actions button,.topbar .actions button,.toolbar-actions button{flex:0 0 auto!important;white-space:nowrap!important}
+@media(max-width:900px){header,.topbar{height:auto!important;min-height:64px!important}header .inner,.topbar .inner,.topbar-inner{align-items:flex-start!important;gap:10px!important;flex-wrap:wrap!important}header .actions,.topbar .actions,.toolbar-actions{width:100%!important;justify-content:flex-start!important}}
+.invoice-analysis-note{font-size:11px;color:var(--muted);font-style:normal;margin-top:3px}
+
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
@@ -472,7 +511,42 @@ async function uploadCCGEFile(file,folder='geral'){
 async function openCCGEAttachment(f){
   if(!f){toast('Arquivo não disponível.');return false}
   const preview=window.open('about:blank','_blank');
-  if(preview){try{preview.document.write('<!doctype html><title>CCGE</title><body style="font-family:Arial;padding:24px">Carregando arquivo...</body>');preview.document.close()}catch(e){}}
+  if(preview){try{preview.document.write('<!doctype html><title>CCGE</title><body style="font-family:Arial;padding:24px">Carregando arquivo...
+<script>
+/* v1.59.5 — atualização automática segura, sem depender de F5 */
+(function ccgeVersionWatch(){
+ const LOCAL_VERSION='1.59.5';
+ let busy=false;
+ function hasUnsavedWork(){
+  const tm=document.getElementById('taskModal');
+  return !!(tm && tm.classList.contains('show') && tm.dataset.temp);
+ }
+ async function checkVersion(){
+  if(busy || document.visibilityState!=='visible') return;
+  busy=true;
+  try{
+   const r=await fetch(location.pathname+'?ccge_version_check='+Date.now(),{cache:'no-store',headers:{'Cache-Control':'no-cache'}});
+   if(!r.ok)return;
+   const html=await r.text();
+   const m=html.match(/CCGE v(\d+\.\d+\.\d+):/);
+   if(!m || m[1]===LOCAL_VERSION)return;
+   if(hasUnsavedWork()){
+    toast(`Nova versão ${m[1]} disponível. Salve ou cancele a edição; a atualização será aplicada em seguida.`);
+    return;
+   }
+   sessionStorage.setItem('ccge_last_reload_version',m[1]);
+   location.replace(location.pathname+'?v='+encodeURIComponent(m[1]));
+  }catch(e){ /* rede indisponível: mantém a versão atual sem interromper o usuário */ }
+  finally{busy=false}
+ }
+ window.addEventListener('focus',checkVersion);
+ document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkVersion()});
+ setInterval(checkVersion,120000);
+ setTimeout(checkVersion,2500);
+})();
+</script>
+
+</body>');preview.document.close()}catch(e){}}
   try{
     if(f.storagePath){
       const bucket=f.storageBucket||CCGE_STORAGE_BUCKET;
@@ -1582,18 +1656,18 @@ function renderTaskCostSummary(t){
  const f=financialTruth(t),estimated=f.estimateUpdated,incurred=f.actualCost,paid=f.paid,payable=f.payable,delta=f.estimateVariance,pct=estimated?delta/estimated*100:null,cons=f.estimateConsumption;
  const deltaClass=delta>0?'estimate-negative':delta<0?'estimate-positive':'';
  const el=$('#taskCostSummary');if(el)el.innerHTML=[['Custo estimado atualizado',brl(estimated)],['Custo real / Incorrido',brl(incurred)],['Pago',brl(paid)],['A pagar',brl(payable)],['Saldo da estimativa',brl(f.estimateBalance)],['Consumo da estimativa',estimated?cons.toFixed(1)+'%':'—'],['Desvio Est. × Real',estimated?`${delta>=0?'+':''}${brl(delta)} (${delta>=0?'+':''}${pct.toFixed(1)}%)`:'—']].map((x,i)=>`<div class="card metric"><small>${x[0]}</small><strong class="${i===6?deltaClass:''}">${x[1]}</strong></div>`).join('');
- if($('#costMapRef'))$('#costMapRef').value=t.map||'';if($('#costMapDate'))$('#costMapDate').value=t.mapApprovalDate?dateBR(t.mapApprovalDate):'';if($('#costEstimated'))$('#costEstimated').value=f.estimateBase?brl(f.estimateBase):'';if($('#invoiceIncurredTotal'))$('#invoiceIncurredTotal').textContent=`Custo real executado: ${brl(incurred)}`;
+ if($('#costMapRef'))$('#costMapRef').value=t.map||t.mapFiles?.[0]?.name||'';if($('#costMapDate'))$('#costMapDate').value=t.mapApprovalDate?dateBR(t.mapApprovalDate):'';if($('#costEstimated'))$('#costEstimated').value=f.estimateBase?brl(f.estimateBase):'';if($('#invoiceIncurredTotal'))$('#invoiceIncurredTotal').textContent=`Custo real executado: ${brl(incurred)}`;
 }
 function invoiceDateField(i,key,label,value){
  const display=value?dateBR(value):'';
- return `<div class="field"><label>${label}</label><div class="ccge-date-wrap"><input class="ccge-date-text" inputmode="numeric" maxlength="10" value="${esc(display)}" placeholder="__/__/____" onchange="editInvoiceDateBR(${i},'${key}',this.value)"><button type="button" class="ccge-calendar-btn" title="Selecionar data" onclick="openInvoiceDatePicker(${i},'${key}',this)">▣</button><input class="ccge-hidden-date" type="date" min="1900-01-01" max="2100-12-31" value="${esc(value||'')}" onchange="pickInvoiceDate(${i},'${key}',this)"></div></div>`;
+ return `<div class="field"><label>${label}</label><div class="ccge-date-wrap"><input class="ccge-date-text" inputmode="numeric" maxlength="10" value="${esc(display)}" placeholder="__/__/____" onchange="editInvoiceDateBR(${i},'${key}',this.value)"><button type="button" class="ccge-calendar-btn" title="Selecionar data" onclick="openInvoiceDatePicker(${i},'${key}',this)">📅</button><input class="ccge-hidden-date" type="date" min="1900-01-01" max="2100-12-31" value="${esc(value||'')}" onchange="pickInvoiceDate(${i},'${key}',this)"></div></div>`;
 }
 function renderInvoices(t){
  let a=t.invoices||[];
  $('#invoiceList').innerHTML=a.length?a.map((x,i)=>`<section class="invoice-card ${x.situation==='Cancelada'?'invoice-cancelled':''}">
  <div class="invoice-card-head"><div><b>Medição / custo real ${String(i+1).padStart(2,'0')}</b><small>${x.amount?brl(Number(x.amount||0)):'Registro em preenchimento'}</small></div><button type="button" class="danger compact-action" onclick="removeInvoice(${i})">Excluir</button></div>
  <div class="invoice-grid invoice-grid-top">
-  <div class="field"><label>Competência</label><input type="month" value="${esc(x.competence||'')}" onchange="editInvoice(${i},'competence',this.value)"></div>
+  <div class="field"><label>Competência</label><input class="ccge-competence-text" inputmode="numeric" maxlength="7" value="${esc(formatCompetenceBR(x.competence||''))}" placeholder="__/____" onchange="editInvoiceCompetenceBR(${i},this.value)"></div>
   <div class="field"><label>Nº da medição</label><input value="${esc(x.measurement||'')}" onchange="editInvoice(${i},'measurement',this.value)"></div>
   <div class="field"><label>Situação</label><select onchange="editInvoice(${i},'situation',this.value)"><option value="" ${!x.situation?'selected':''}>—</option><option value="Ativa" ${x.situation==='Ativa'?'selected':''}>Ativa</option><option value="Cancelada" ${x.situation==='Cancelada'?'selected':''}>Cancelada</option></select></div>
  </div>
@@ -1606,10 +1680,14 @@ function renderInvoices(t){
   <div class="field invoice-span-all"><label>Descrição da medição / despesa</label><input value="${esc(x.description||'')}" onchange="editInvoice(${i},'description',this.value)"></div>
  </div>
  <div class="invoice-upload-block"><label>Documento / comprovante</label>
- ${x.attachment?.name?`<div class="invoice-attached"><span><b>${esc(x.attachment.name)}</b><small>Arquivo vinculado à medição</small></span><div><button type="button" class="secondary compact-action" onclick="openInvoiceAttachment(${i})">Abrir</button><button type="button" class="danger compact-action" onclick="removeInvoiceAttachment(${i})">Excluir arquivo</button></div></div>`:`<label class="invoice-dropzone" for="invoiceFile_${i}"><b>Arraste o arquivo aqui ou clique para selecionar</b><small>NF, medição, comprovante ou documento relacionado</small><input type="file" id="invoiceFile_${i}" onchange="attachInvoiceFile(${i})"></label>`}
+ ${x.attachment?.name?`<div class="invoice-attached"><span><b>${esc(x.attachment.name)}</b><small>Arquivo vinculado à medição</small></span><div class="invoice-file-actions"><button type="button" class="secondary compact-action" onclick="openInvoiceAttachment(${i})">Abrir</button><button type="button" class="danger compact-action" onclick="removeInvoiceAttachment(${i})">Excluir</button></div></div>`:`<label class="invoice-dropzone drop-zone" data-invoice-index="${i}" for="invoiceFile_${i}"><b>Arraste o arquivo aqui ou clique para selecionar</b><small>NF, medição, comprovante ou documento relacionado</small><em class="invoice-analysis-note">O arquivo será anexado. Leitura automática ainda não habilitada.</em><input type="file" id="invoiceFile_${i}" onchange="attachInvoiceFile(${i})"></label>`}
  </div></section>`).join(''):'<div class="empty" style="padding:14px">Nenhuma medição ou despesa real cadastrada.</div>';
  renderTaskCostSummary(t)
 }
+window.editInvoice=(i,k,v)=>{let t=modalTask();t.invoices=t.invoices||[];if(!t.invoices[i])return;t.invoices[i][k]=k==='amount'?parseMoney(v):v;$('#taskModal').dataset.temp=JSON.stringify(t);renderTaskCostSummary(t)};
+window.removeInvoice=i=>{let t=modalTask(),inv=t.invoices?.[i];if(!inv)return;if(inv.attachment)queueTaskAttachmentDelete(inv.attachment);t.invoices.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderInvoices(t);toast('Registro removido. Salve as alterações para confirmar.')};
+function formatCompetenceBR(v){const m=String(v||'').match(/^(\d{4})-(\d{2})$/);return m?`${m[2]}/${m[1]}`:''}
+window.editInvoiceCompetenceBR=(i,val)=>{const raw=String(val||'').trim();if(!raw){editInvoice(i,'competence','');return}const m=raw.match(/^(\d{1,2})\/(\d{4})$/);if(!m||Number(m[1])<1||Number(m[1])>12){toast('Informe a competência no formato mês/ano.');renderInvoices(modalTask());return}editInvoice(i,'competence',`${m[2]}-${String(Number(m[1])).padStart(2,'0')}`)};
 window.editInvoiceDateBR=(i,key,val)=>{
  let raw=String(val||'').trim(),iso='';
  if(raw){
@@ -1623,10 +1701,11 @@ window.editInvoiceDateBR=(i,key,val)=>{
 };
 window.openInvoiceDatePicker=(i,key,btn)=>{const input=btn?.parentElement?.querySelector('.ccge-hidden-date');if(!input)return;try{input.showPicker()}catch(e){input.click()}};
 window.pickInvoiceDate=(i,key,input)=>editInvoice(i,key,input.value||'');
+function validateInvoicesForSave(t){const rows=t?.invoices||[];for(let i=0;i<rows.length;i++){const x=rows[i]||{},hasData=!!(x.competence||x.measurement||x.issueDate||x.supplier||x.number||x.description||Number(x.amount||0)||x.dueDate||x.situation||x.attachment);if(!hasData)continue;if(!x.situation)return `Selecione a situação da medição / custo real ${String(i+1).padStart(2,'0')}.`;if(Number(x.amount||0)<0)return `O valor real da medição ${String(i+1).padStart(2,'0')} não pode ser negativo.`}return ''}
 $('#addInvoice').onclick=()=>{let t=modalTask();t.invoices=t.invoices||[];t.invoices.push({id:uid('inv'),competence:'',measurement:'',issueDate:'',supplier:'',number:'',description:'',amount:0,dueDate:'',situation:'',attachment:null});$('#taskModal').dataset.temp=JSON.stringify(t);renderInvoices(t)};
 window.attachInvoiceFile=async i=>{const input=$(`#invoiceFile_${i}`),file=input?.files?.[0];if(!file)return;try{const uploaded=await uploadCCGEFile(file,`tarefas/${editingId||'nova'}/notas-fiscais`);uploaded._pendingUpload=true;let t=modalTask();t.invoices[i].attachment=uploaded;$('#taskModal').dataset.temp=JSON.stringify(t);renderInvoices(t);toast('Arquivo da NF enviado. Salve a tarefa para confirmar.')}catch(err){toast(err.message||'Falha no upload da NF')}};
 window.openInvoiceAttachment=i=>openCCGEAttachment(modalTask().invoices?.[i]?.attachment);
-window.removeInvoiceAttachment=async i=>{let t=modalTask(),f=t.invoices?.[i]?.attachment;if(!f)return;queueTaskAttachmentDelete(f);t.invoices[i].attachment=null;$('#taskModal').dataset.temp=JSON.stringify(t);renderInvoices(t)};
+window.removeInvoiceAttachment=async i=>{let t=modalTask(),f=t.invoices?.[i]?.attachment;if(!f)return;queueTaskAttachmentDelete(f);t.invoices[i].attachment=null;$('#taskModal').dataset.temp=JSON.stringify(t);renderInvoices(t);toast('Arquivo removido. Salve as alterações para confirmar.')};
 function renderDeliverables(t){let a=t.deliverables||[];$('#deliverableList').innerHTML=a.length?a.map((x,i)=>`<div class="mini-row"><input value="${esc(x.name||'')}" placeholder="Entregável" onchange="editDeliverable(${i},'name',this.value)"><input value="${esc(x.revision||'')}" placeholder="Revisão" onchange="editDeliverable(${i},'revision',this.value)"><input type="date" min="1900-01-01" max="2100-12-31" value="${esc(x.dueDate||'')}" onchange="editDeliverable(${i},'dueDate',this.value)"><select onchange="editDeliverable(${i},'status',this.value)">${['Planejado','Em elaboração','Em análise','Aprovado','Reprovado'].map(v=>`<option ${x.status===v?'selected':''}>${v}</option>`).join('')}</select><button type="button" onclick="removeDeliverable(${i})">Remover</button></div>`).join(''):'<div class="empty" style="padding:14px">Nenhum entregável cadastrado.</div>'}
 window.editDeliverable=(i,k,v)=>{let t=modalTask();t.deliverables=t.deliverables||[];t.deliverables[i][k]=v;$('#taskModal').dataset.temp=JSON.stringify(t)};
 window.removeDeliverable=i=>{let t=modalTask();t.deliverables.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderDeliverables(t)};
@@ -1749,7 +1828,7 @@ async function submitPhotos(){
 $('#addPhotos').onclick=submitPhotos;
 $('#photoInput').addEventListener('change',submitPhotos);
 function renderTaskHistory(t){$('#taskHistory').innerHTML=(t.history||[]).length?t.history.map(h=>`<div class="attention-item"><i class="dot blue"></i><div><b>${esc(h.text)}</b><small>${new Date(h.date).toLocaleString('pt-BR')}</small></div></div>`).join(''):'<div class="empty">Sem histórico nesta tarefa.</div>'}
-$('#saveTaskModal').onclick=async()=>{const saveBtn=$('#saveTaskModal');const originalLabel='Salvar alterações';if(!validateCCGEDatesIn($('#taskModal')))return;saveBtn.disabled=true;saveBtn.classList.add('save-working');saveBtn.textContent='⟳ Salvando...';const dialog=$('#taskModal .dialog');const scrollTop=dialog?dialog.scrollTop:0;const activeTab=$('.tabs button.active')?.dataset.tab||'general';let t=normalizeTaskName(modalTask());let old=editingId&&state.tasks.find(x=>x.id===editingId);let temp=JSON.parse($('#taskModal').dataset.temp);t.executionHistory=Array.isArray(old?.executionHistory)?[...old.executionHistory]:Array.isArray(t.executionHistory)?[...t.executionHistory]:[];if(!old||((old.real??null)!==(t.real??null))){t.executionHistory.unshift({date:new Date().toISOString(),percent:t.real===null?null:Number(t.real)});t.executionHistory=t.executionHistory.slice(0,200)};t.photos=temp.photos||[];t.mapFiles=temp.mapFiles||[];t.documents=temp.documents||[];t.videos=temp.videos||[];t.invoices=temp.invoices||[];t.deliverables=temp.deliverables||[];t.payments=temp.payments||[];t.milestones=temp.milestones||[];t.additiveRecords=temp.additiveRecords||[];t=cleanTaskAttachmentMeta(t);t.additives=additiveTotal(t);t.approvedOverride=false;t.paid=(t.payments||[]).reduce((sum,p)=>sum+Number(p.paidAmount||0),0);t.invoiced=Math.max(Number(t.invoiced||0),(t.invoices||[]).reduce((sum,i)=>sum+Number(i.amount||0),0));t.history=old?.history||[];t.history.unshift({date:new Date().toISOString(),text:old?'Informações da tarefa atualizadas':'Tarefa criada'});if(old)Object.assign(old,t);else{state.tasks.push(t);editingId=t.id}$('#taskModal').dataset.temp=JSON.stringify(t);recomputeDerivedState();const msg=old?`Tarefa atualizada: ${taskDisplayName(t)}`:`Nova tarefa: ${taskDisplayName(t)}`;state.history.unshift({date:new Date().toISOString(),text:msg});state.history=state.history.slice(0,40);const snapshot=persistentStateSnapshot();safeStore.set(JSON.stringify(snapshot));const cloudOk=await salvarEstadoNuvem(snapshot);if(cloudOk){const pendingDeletes=taskPendingDeletes();for(const f of pendingDeletes){try{await deleteCCGEAttachment(f)}catch(e){console.warn('Falha ao limpar anexo removido',e)}}$('#taskModal').dataset.pendingDeletes='[]';const execBox=$('#taskExecutionBox');if(execBox){execBox.dataset.baselineStatus=t.status;execBox.dataset.baselinePct=t.real===null?'':String(Number(t.real));if(window.syncTaskExecutionUI)window.syncTaskExecutionUI()}saveBtn.classList.remove('save-working');saveBtn.classList.add('save-success');saveBtn.textContent='✓ Alterações salvas';toast('Alterações salvas');scheduleReactiveRender();setTimeout(()=>{saveBtn.disabled=false;saveBtn.classList.remove('save-success');saveBtn.textContent=originalLabel},1300)}else{saveBtn.disabled=false;saveBtn.classList.remove('save-working','save-success');saveBtn.textContent='Erro ao salvar — tentar novamente';toast('Erro ao salvar no Supabase. Tente novamente.')}requestAnimationFrame(()=>{const tab=$(`.tabs button[data-tab="${activeTab}"]`);if(tab&&!tab.classList.contains('active'))tab.click();if(dialog)dialog.scrollTop=scrollTop})};
+$('#saveTaskModal').onclick=async()=>{const __invoiceError=validateInvoicesForSave(modalTask());if(__invoiceError){toast(__invoiceError);return;}const saveBtn=$('#saveTaskModal');const originalLabel='Salvar alterações';if(!validateCCGEDatesIn($('#taskModal')))return;saveBtn.disabled=true;saveBtn.classList.add('save-working');saveBtn.textContent='⟳ Salvando...';const dialog=$('#taskModal .dialog');const scrollTop=dialog?dialog.scrollTop:0;const activeTab=$('.tabs button.active')?.dataset.tab||'general';let t=normalizeTaskName(modalTask());let old=editingId&&state.tasks.find(x=>x.id===editingId);let temp=JSON.parse($('#taskModal').dataset.temp);t.executionHistory=Array.isArray(old?.executionHistory)?[...old.executionHistory]:Array.isArray(t.executionHistory)?[...t.executionHistory]:[];if(!old||((old.real??null)!==(t.real??null))){t.executionHistory.unshift({date:new Date().toISOString(),percent:t.real===null?null:Number(t.real)});t.executionHistory=t.executionHistory.slice(0,200)};t.photos=temp.photos||[];t.mapFiles=temp.mapFiles||[];t.documents=temp.documents||[];t.videos=temp.videos||[];t.invoices=temp.invoices||[];t.deliverables=temp.deliverables||[];t.payments=temp.payments||[];t.milestones=temp.milestones||[];t.additiveRecords=temp.additiveRecords||[];t=cleanTaskAttachmentMeta(t);t.additives=additiveTotal(t);t.approvedOverride=false;t.paid=(t.payments||[]).reduce((sum,p)=>sum+Number(p.paidAmount||0),0);t.invoiced=Math.max(Number(t.invoiced||0),(t.invoices||[]).reduce((sum,i)=>sum+Number(i.amount||0),0));t.history=old?.history||[];t.history.unshift({date:new Date().toISOString(),text:old?'Informações da tarefa atualizadas':'Tarefa criada'});if(old)Object.assign(old,t);else{state.tasks.push(t);editingId=t.id}$('#taskModal').dataset.temp=JSON.stringify(t);recomputeDerivedState();const msg=old?`Tarefa atualizada: ${taskDisplayName(t)}`:`Nova tarefa: ${taskDisplayName(t)}`;state.history.unshift({date:new Date().toISOString(),text:msg});state.history=state.history.slice(0,40);const snapshot=persistentStateSnapshot();safeStore.set(JSON.stringify(snapshot));const cloudOk=await salvarEstadoNuvem(snapshot);if(cloudOk){const pendingDeletes=taskPendingDeletes();for(const f of pendingDeletes){try{await deleteCCGEAttachment(f)}catch(e){console.warn('Falha ao limpar anexo removido',e)}}$('#taskModal').dataset.pendingDeletes='[]';const execBox=$('#taskExecutionBox');if(execBox){execBox.dataset.baselineStatus=t.status;execBox.dataset.baselinePct=t.real===null?'':String(Number(t.real));if(window.syncTaskExecutionUI)window.syncTaskExecutionUI()}saveBtn.classList.remove('save-working');saveBtn.classList.add('save-success');saveBtn.textContent='✓ Alterações salvas';$$('#taskModal input.money-input,#taskModal input[data-money="true"]').forEach(formatMoneyField);toast('Alterações salvas');scheduleReactiveRender();setTimeout(()=>{saveBtn.disabled=false;saveBtn.classList.remove('save-success');saveBtn.textContent=originalLabel},1300)}else{saveBtn.disabled=false;saveBtn.classList.remove('save-working','save-success');saveBtn.textContent='Erro ao salvar — tentar novamente';toast('Erro ao salvar no Supabase. Tente novamente.')}requestAnimationFrame(()=>{const tab=$(`.tabs button[data-tab="${activeTab}"]`);if(tab&&!tab.classList.contains('active'))tab.click();if(dialog)dialog.scrollTop=scrollTop})};
 function closeModal(){
  const modal=$('#taskModal');if(!modal)return;
  // UX/safety: never hold the user inside the task modal while remote cleanup is pending.
@@ -2074,12 +2153,21 @@ $('#metricModal').onclick=e=>{ /* v1.56: clique fora não fecha; use X ou Fechar
 $('#globalSearch').onkeydown=e=>{if(e.key==='Enter')openGlobalSearch(e.target.value)};$('#closeGlobalSearch').onclick=()=>$('#globalSearchModal').classList.remove('open');$('#globalSearchModal').onclick=e=>{if(e.target.id==='globalSearchModal')$('#globalSearchModal').classList.remove('open')};
 
 
+function formatMoneyField(input){
+ if(!input||input.disabled||input.readOnly)return;
+ const raw=String(input.value||'').trim();
+ if(!raw)return;
+ const n=parseMoney(raw);
+ if(Number.isFinite(n))input.value=brl(n);
+}
 function initMoneySelectUX(root=document){
  root.querySelectorAll('input.money-input,input[data-money="true"],#mcMonthlyValue,#mcRealizedAccumulated,#mcProjectedTotal,#qpAmount,#qpPaidAmount').forEach(input=>{
    if(input.disabled||input.readOnly||input.dataset.moneySelectReady==='1')return;
    input.dataset.moneySelectReady='1';
    input.addEventListener('focus',()=>{setTimeout(()=>input.select(),0)});
    input.addEventListener('mousedown',e=>{if(document.activeElement!==input){e.preventDefault();input.focus();setTimeout(()=>input.select(),0)}});
+   input.addEventListener('blur',()=>formatMoneyField(input));
+   input.addEventListener('change',()=>formatMoneyField(input));
  });
 }
 document.addEventListener('DOMContentLoaded',()=>initMoneySelectUX());
@@ -2103,6 +2191,7 @@ function initDropZones(root=document){
      if(handler==='monthly'){await submitMonthlyAttachment();return}
      if(handler==='photo'){await submitPhotos();return}
      if(handler==='video'){await submitVideos();return}
+     if(zone.dataset.invoiceIndex!==undefined&&typeof window.attachInvoiceFile==='function'){await window.attachInvoiceFile(Number(zone.dataset.invoiceIndex));return}
      if(zone.dataset.additiveIndex!==undefined&&typeof window.attachAdditiveFiles==='function'){await window.attachAdditiveFiles(Number(zone.dataset.additiveIndex));return}
      input.dispatchEvent(new Event('change',{bubbles:true}));
    });
