@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- CCGE v1.60.8: exclusão direta de medições e anexos, sem delegação de eventos. -->
+<!-- CCGE v1.60.9: consolidação Medições/Custos Reais em uma única implementação. -->
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
@@ -1630,7 +1630,7 @@ function invoiceDateField(i,key,label,value){
 function renderInvoices(t){
  let a=t.invoices||[];
  $('#invoiceList').innerHTML=a.length?a.map((x,i)=>`<section class="invoice-card ${x.situation==='Cancelada'?'invoice-cancelled':''}">
- <div class="invoice-card-head"><div><b>Medição / custo real ${String(i+1).padStart(2,'0')}</b><small>${x.amount?brl(Number(x.amount||0)):'Registro em preenchimento'}</small></div><button type="button" class="danger compact-action ccge-delete-invoice" data-index="${i}" data-invoice-id="${esc(x.id||'')}" onclick="return ccgeDeleteInvoiceDirect(this)">Excluir</button></div>
+ <div class="invoice-card-head"><div><b>Medição / custo real ${String(i+1).padStart(2,'0')}</b><small>${x.amount?brl(Number(x.amount||0)):'Registro em preenchimento'}</small></div><button type="button" class="danger compact-action ccge-delete-invoice" data-index="${i}" data-invoice-id="${esc(x.id||'')}" onclick="return ccgeDeleteInvoiceDirect(this,event)">Excluir</button></div>
  <div class="invoice-grid invoice-grid-top">
   <div class="field"><label>Competência</label><input class="ccge-competence-text" inputmode="numeric" maxlength="7" value="${esc(formatCompetenceBR(x.competence||''))}" placeholder="__/____" onchange="editInvoiceCompetenceBR(${i},this.value)"></div>
   <div class="field"><label>Nº da medição</label><input value="${esc(x.measurement||'')}" onchange="editInvoice(${i},'measurement',this.value)"></div>
@@ -1645,14 +1645,13 @@ function renderInvoices(t){
   <div class="field invoice-span-all"><label>Descrição da medição / despesa</label><input value="${esc(x.description||'')}" onchange="editInvoice(${i},'description',this.value)"></div>
  </div>
  <div class="invoice-upload-block"><label>Documento / comprovante</label>
- ${x.attachment?.name?`<div class="invoice-attached"><span><b>${esc(x.attachment.name)}</b><small>Arquivo vinculado à medição</small></span><div class="invoice-file-actions"><button type="button" class="secondary compact-action" onclick="openInvoiceAttachment(${i})">Abrir</button><button type="button" class="danger compact-action ccge-delete-invoice-attachment" data-index="${i}" data-invoice-id="${esc(x.id||'')}" onclick="return ccgeDeleteInvoiceAttachmentDirect(this)">Excluir</button></div></div>`:`<label class="invoice-dropzone drop-zone" data-invoice-index="${i}" for="invoiceFile_${i}"><b>Arraste o arquivo aqui ou clique para selecionar</b><small>NF, medição, comprovante ou documento relacionado</small><em class="invoice-analysis-note">O arquivo será anexado. Leitura automática ainda não habilitada.</em><input type="file" id="invoiceFile_${i}" onchange="attachInvoiceFile(${i})"></label>`}
+ ${x.attachment?.name?`<div class="invoice-attached"><span><b>${esc(x.attachment.name)}</b><small>Arquivo vinculado à medição</small></span><div class="invoice-file-actions"><button type="button" class="secondary compact-action" onclick="openInvoiceAttachment(${i})">Abrir</button><button type="button" class="danger compact-action ccge-delete-invoice-attachment" data-index="${i}" data-invoice-id="${esc(x.id||'')}" onclick="return ccgeDeleteInvoiceAttachmentDirect(this,event)">Excluir</button></div></div>`:`<label class="invoice-dropzone drop-zone" data-invoice-index="${i}" for="invoiceFile_${i}"><b>Arraste o arquivo aqui ou clique para selecionar</b><small>NF, medição, comprovante ou documento relacionado</small><em class="invoice-analysis-note">Ao anexar um PDF com texto legível, o CCGE tentará preencher automaticamente os dados identificáveis para conferência.</em><input type="file" id="invoiceFile_${i}" onchange="attachInvoiceFile(${i})"></label>`}
  </div></section>`).join(''):'<div class="empty" style="padding:14px">Nenhuma medição ou despesa real cadastrada.</div>';
  renderTaskCostSummary(t)
 }
 window.editInvoice=(i,k,v)=>{let t=modalTask();t.invoices=t.invoices||[];if(!t.invoices[i])return;t.invoices[i][k]=k==='amount'?parseMoney(v):v;$('#taskModal').dataset.temp=JSON.stringify(t);renderTaskCostSummary(t)};
-window.ccgeDeleteInvoiceDirect=function(btn){try{const modal=document.getElementById('taskModal');if(!modal?.dataset.temp)return false;const t=JSON.parse(modal.dataset.temp);t.invoices=Array.isArray(t.invoices)?t.invoices:[];const id=btn?.dataset?.invoiceId||'';let i=id?t.invoices.findIndex(x=>String(x?.id||'')===String(id)):-1;if(i<0)i=Number(btn?.dataset?.index);if(!Number.isInteger(i)||i<0||i>=t.invoices.length){toast('Não foi possível localizar esta medição.');return false}const inv=t.invoices[i];if(inv?.attachment){try{queueTaskAttachmentDelete(inv.attachment)}catch(e){console.warn('Fila de exclusão do anexo:',e)}}t.invoices.splice(i,1);modal.dataset.temp=JSON.stringify(t);renderInvoices(t);toast('Medição removida. Clique em Salvar alterações para confirmar.');return false}catch(e){console.error(e);toast('Falha ao excluir a medição.');return false}};
-window.ccgeDeleteInvoiceAttachmentDirect=function(btn){try{const modal=document.getElementById('taskModal');if(!modal?.dataset.temp)return false;const t=JSON.parse(modal.dataset.temp);t.invoices=Array.isArray(t.invoices)?t.invoices:[];const id=btn?.dataset?.invoiceId||'';let i=id?t.invoices.findIndex(x=>String(x?.id||'')===String(id)):-1;if(i<0)i=Number(btn?.dataset?.index);if(!Number.isInteger(i)||i<0||i>=t.invoices.length||!t.invoices[i]?.attachment){toast('Não foi possível localizar este comprovante.');return false}try{queueTaskAttachmentDelete(t.invoices[i].attachment)}catch(e){console.warn('Fila de exclusão do anexo:',e)}t.invoices[i].attachment=null;modal.dataset.temp=JSON.stringify(t);renderInvoices(t);toast('Comprovante removido. Clique em Salvar alterações para confirmar.');return false}catch(e){console.error(e);toast('Falha ao excluir o comprovante.');return false}};
-window.removeInvoice=i=>{const modal=$('#taskModal');if(!modal?.dataset.temp)return;let t;try{t=JSON.parse(modal.dataset.temp)}catch(e){console.error(e);toast('Não foi possível ler a medição para excluir.');return}t.invoices=Array.isArray(t.invoices)?t.invoices:[];const inv=t.invoices[i];if(!inv)return;if(inv.attachment)queueTaskAttachmentDelete(inv.attachment);t.invoices.splice(i,1);modal.dataset.temp=JSON.stringify(t);renderInvoices(t);toast('Medição removida. Salve as alterações para confirmar.')};
+window.ccgeDeleteInvoiceDirect=function(btn,event){try{event?.preventDefault?.();event?.stopPropagation?.();const modal=document.getElementById('taskModal');if(!modal?.dataset.temp)return false;const t=JSON.parse(modal.dataset.temp);t.invoices=Array.isArray(t.invoices)?t.invoices:[];const id=btn?.dataset?.invoiceId||'';let i=id?t.invoices.findIndex(x=>String(x?.id||'')===String(id)):-1;if(i<0)i=Number(btn?.dataset?.index);if(!Number.isInteger(i)||i<0||i>=t.invoices.length){toast('Não foi possível localizar esta medição.');return false}const inv=t.invoices[i];if(inv?.attachment){try{queueTaskAttachmentDelete(inv.attachment)}catch(e){console.warn('Fila de exclusão do anexo:',e)}}t.invoices.splice(i,1);modal.dataset.temp=JSON.stringify(t);renderInvoices(t);toast('Medição removida. Clique em Salvar alterações para confirmar.');return false}catch(e){console.error(e);toast('Falha ao excluir a medição.');return false}};
+window.ccgeDeleteInvoiceAttachmentDirect=function(btn,event){try{event?.preventDefault?.();event?.stopPropagation?.();const modal=document.getElementById('taskModal');if(!modal?.dataset.temp)return false;const t=JSON.parse(modal.dataset.temp);t.invoices=Array.isArray(t.invoices)?t.invoices:[];const id=btn?.dataset?.invoiceId||'';let i=id?t.invoices.findIndex(x=>String(x?.id||'')===String(id)):-1;if(i<0)i=Number(btn?.dataset?.index);if(!Number.isInteger(i)||i<0||i>=t.invoices.length||!t.invoices[i]?.attachment){toast('Não foi possível localizar este comprovante.');return false}try{queueTaskAttachmentDelete(t.invoices[i].attachment)}catch(e){console.warn('Fila de exclusão do anexo:',e)}t.invoices[i].attachment=null;modal.dataset.temp=JSON.stringify(t);renderInvoices(t);toast('Comprovante removido. Clique em Salvar alterações para confirmar.');return false}catch(e){console.error(e);toast('Falha ao excluir o comprovante.');return false}};
 function formatCompetenceBR(v){const m=String(v||'').match(/^(\d{4})-(\d{2})$/);return m?`${m[2]}/${m[1]}`:''}
 window.editInvoiceCompetenceBR=(i,val)=>{const raw=String(val||'').trim();if(!raw){editInvoice(i,'competence','');return}const m=raw.match(/^(\d{1,2})\/(\d{4})$/);if(!m||Number(m[1])<1||Number(m[1])>12){toast('Informe a competência no formato mês/ano.');renderInvoices(modalTask());return}editInvoice(i,'competence',`${m[2]}-${String(Number(m[1])).padStart(2,'0')}`)};
 window.editInvoiceDateBR=(i,key,val)=>{
@@ -1672,7 +1671,6 @@ function validateInvoicesForSave(t){const rows=t?.invoices||[];for(let i=0;i<row
 $('#addInvoice').onclick=()=>{let t=modalTask();t.invoices=t.invoices||[];t.invoices.push({id:uid('inv'),competence:'',measurement:'',issueDate:'',supplier:'',number:'',description:'',amount:0,dueDate:'',situation:'',attachment:null});$('#taskModal').dataset.temp=JSON.stringify(t);renderInvoices(t)};
 window.attachInvoiceFile=async i=>{const input=$(`#invoiceFile_${i}`),file=input?.files?.[0];if(!file)return;try{const uploaded=await uploadCCGEFile(file,`tarefas/${editingId||'nova'}/notas-fiscais`);uploaded._pendingUpload=true;let t=modalTask();t.invoices[i].attachment=uploaded;$('#taskModal').dataset.temp=JSON.stringify(t);renderInvoices(t);toast('Arquivo da NF enviado. Salve a tarefa para confirmar.')}catch(err){toast(err.message||'Falha no upload da NF')}};
 window.openInvoiceAttachment=i=>openCCGEAttachment(modalTask().invoices?.[i]?.attachment);
-window.removeInvoiceAttachment=async i=>{const modal=$('#taskModal');if(!modal?.dataset.temp)return;let t;try{t=JSON.parse(modal.dataset.temp)}catch(e){console.error(e);toast('Não foi possível ler o anexo para excluir.');return}t.invoices=Array.isArray(t.invoices)?t.invoices:[];const f=t.invoices[i]?.attachment;if(!f)return;queueTaskAttachmentDelete(f);t.invoices[i].attachment=null;modal.dataset.temp=JSON.stringify(t);renderInvoices(t);toast('Arquivo removido. Salve as alterações para confirmar.')};
 function renderDeliverables(t){let a=t.deliverables||[];$('#deliverableList').innerHTML=a.length?a.map((x,i)=>`<div class="mini-row"><input value="${esc(x.name||'')}" placeholder="Entregável" onchange="editDeliverable(${i},'name',this.value)"><input value="${esc(x.revision||'')}" placeholder="Revisão" onchange="editDeliverable(${i},'revision',this.value)"><input type="date" min="1900-01-01" max="2100-12-31" value="${esc(x.dueDate||'')}" onchange="editDeliverable(${i},'dueDate',this.value)"><select onchange="editDeliverable(${i},'status',this.value)">${['Planejado','Em elaboração','Em análise','Aprovado','Reprovado'].map(v=>`<option ${x.status===v?'selected':''}>${v}</option>`).join('')}</select><button type="button" onclick="removeDeliverable(${i})">Remover</button></div>`).join(''):'<div class="empty" style="padding:14px">Nenhum entregável cadastrado.</div>'}
 window.editDeliverable=(i,k,v)=>{let t=modalTask();t.deliverables=t.deliverables||[];t.deliverables[i][k]=v;$('#taskModal').dataset.temp=JSON.stringify(t)};
 window.removeDeliverable=i=>{let t=modalTask();t.deliverables.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderDeliverables(t)};
@@ -2328,7 +2326,7 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 <script>
 /* v1.59.5.1 — atualização automática segura, sem depender de F5 */
 (function ccgeVersionWatch(){
- const LOCAL_VERSION='1.60.8';
+ const LOCAL_VERSION='1.60.9';
  let busy=false;
  function hasUnsavedWork(){
    const tm=document.getElementById('taskModal');
@@ -2372,9 +2370,8 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 </style><script>
 /* v1.60 — estabilidade funcional */
 (function ccgeStability160(){
- function installInvoiceActions(){const root=document.getElementById('invoiceList');if(!root||root.dataset.actionDelegation160)return;root.dataset.actionDelegation160='1';root.addEventListener('click',async e=>{const b=e.target.closest('[data-ccge-action]');if(!b)return;e.preventDefault();e.stopPropagation();const i=Number(b.dataset.index),action=b.dataset.ccgeAction;try{if(action==='remove-invoice')window.removeInvoice(i);else if(action==='remove-invoice-attachment')await window.removeInvoiceAttachment(i)}catch(err){console.error(err);toast('Não foi possível excluir. '+(err?.message||''))}})}
  function installResize(dialog){if(!dialog||dialog.dataset.resize160)return;dialog.dataset.resize160='1';['n','s','e','w','ne','nw','se','sw'].forEach(edge=>{const h=document.createElement('div');h.className='ccge-resize-handle '+edge;h.dataset.edge=edge;dialog.appendChild(h)});dialog.addEventListener('pointerdown',e=>{const h=e.target.closest('.ccge-resize-handle');if(!h||dialog.classList.contains('ccge-expanded'))return;e.preventDefault();e.stopPropagation();h.setPointerCapture?.(e.pointerId);const edge=h.dataset.edge,r=dialog.getBoundingClientRect(),sx=e.clientX,sy=e.clientY;dialog.style.position='fixed';dialog.style.left=r.left+'px';dialog.style.top=r.top+'px';dialog.style.right='auto';dialog.style.bottom='auto';dialog.style.width=r.width+'px';dialog.style.height=r.height+'px';dialog.style.maxWidth='none';dialog.style.maxHeight='none';const move=ev=>{let dx=ev.clientX-sx,dy=ev.clientY-sy,left=r.left,top=r.top,w=r.width,hh=r.height;const minW=Math.min(420,innerWidth-16),minH=Math.min(220,innerHeight-16);if(edge.includes('e'))w=r.width+dx;if(edge.includes('s'))hh=r.height+dy;if(edge.includes('w')){left=r.left+dx;w=r.width-dx}if(edge.includes('n')){top=r.top+dy;hh=r.height-dy}if(w<minW){if(edge.includes('w'))left-=minW-w;w=minW}if(hh<minH){if(edge.includes('n'))top-=minH-hh;hh=minH}left=Math.max(4,Math.min(left,innerWidth-minW-4));top=Math.max(4,Math.min(top,innerHeight-minH-4));w=Math.min(w,innerWidth-left-4);hh=Math.min(hh,innerHeight-top-4);dialog.style.left=left+'px';dialog.style.top=top+'px';dialog.style.width=w+'px';dialog.style.height=hh+'px'};const up=()=>{window.removeEventListener('pointermove',move,true);window.removeEventListener('pointerup',up,true)};window.addEventListener('pointermove',move,true);window.addEventListener('pointerup',up,true)})}
- function install(){installInvoiceActions();document.querySelectorAll('.modal .dialog').forEach(installResize)}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();new MutationObserver(install).observe(document.documentElement,{childList:true,subtree:true});
+ function install(){document.querySelectorAll('.modal .dialog').forEach(installResize)}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();new MutationObserver(install).observe(document.documentElement,{childList:true,subtree:true});
  function filenameSuggestions(name){const n=String(name||'').replace(/\.[^.]+$/,'');const out={};let m=n.match(/^\s*(.*?)\s*[-–]\s*NF\s*[-#º°]?\s*(\d+)/i);if(m){out.supplier=m[1].trim();out.number=m[2]}m=n.match(/(?:^|[-_\s])v\.?\s*(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})(?:$|[-_\s])/i);if(m){let y=m[3];if(y.length===2)y='20'+y;out.dueDate=`${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`}return out}
  async function ensurePdfJs(){if(window.pdfjsLib)return window.pdfjsLib;return new Promise((resolve,reject)=>{let sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';sc.onload=()=>{pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';resolve(pdfjsLib)};sc.onerror=reject;document.head.appendChild(sc)})}
  async function pdfText(file){if(!/pdf/i.test(file.type||'')&&!/\.pdf$/i.test(file.name||''))return '';const lib=await ensurePdfJs(),buf=await file.arrayBuffer(),pdf=await lib.getDocument({data:buf}).promise;let txt='';for(let p=1;p<=Math.min(pdf.numPages,3);p++){const pg=await pdf.getPage(p),c=await pg.getTextContent();txt+=' '+c.items.map(x=>x.str).join(' ')}return txt.replace(/\s+/g,' ')}
@@ -2458,46 +2455,5 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 </style>
 
 
-<script>
-/* v1.60.6 — ações por ID estável; não dependem do índice visual */
-(function ccgeFix1606(){
- function m(){return document.getElementById('taskModal')}
- function read(){try{return JSON.parse(m()?.dataset.temp||'{}')}catch(e){console.error(e);return {}}}
- function write(t){const el=m();if(!el)return;el.dataset.temp=JSON.stringify(t);renderInvoices(t);renderTaskCostSummary(t)}
- function find(t,id,index){
-   t.invoices=Array.isArray(t.invoices)?t.invoices:[];
-   if(id){const n=t.invoices.findIndex(x=>String(x?.id||'')===String(id));if(n>=0)return n}
-   return Number.isInteger(index)&&index>=0&&index<t.invoices.length?index:-1;
- }
- function removeRow(btn){
-   const t=read(),i=find(t,btn.dataset.invoiceId,Number(btn.dataset.index));
-   if(i<0)return toast('Não foi possível localizar esta medição.');
-   const inv=t.invoices[i];
-   if(inv?.attachment)queueTaskAttachmentDelete(inv.attachment);
-   t.invoices.splice(i,1);write(t);
-   toast('Medição removida. Clique em Salvar alterações para confirmar.');
- }
- function removeFile(btn){
-   const t=read(),i=find(t,btn.dataset.invoiceId,Number(btn.dataset.index));
-   if(i<0||!t.invoices[i]?.attachment)return toast('Não foi possível localizar este comprovante.');
-   queueTaskAttachmentDelete(t.invoices[i].attachment);
-   t.invoices[i].attachment=null;write(t);
-   toast('Comprovante removido. Clique em Salvar alterações para confirmar.');
- }
- document.addEventListener('click',function(e){
-   const b=e.target.closest?.('#taskModal button.ccge-delete-invoice,#taskModal button.ccge-delete-invoice-attachment');
-   if(!b)return;
-   e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
-   if(b.classList.contains('ccge-delete-invoice-attachment'))removeFile(b);else removeRow(b);
- },true);
- document.addEventListener('click',function(e){
-   const b=e.target.closest?.('#taskModal .ccge-expand-btn');if(!b)return;
-   e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
-   const d=m()?.querySelector('.dialog');if(!d)return;
-   const on=!d.classList.contains('ccge-expanded');d.classList.toggle('ccge-expanded',on);
-   b.textContent=on?'↙':'↗';b.title=on?'Restaurar janela':'Expandir janela';b.setAttribute('aria-label',b.title);
- },true);
-})();
-</script>
 
 </body></html>
