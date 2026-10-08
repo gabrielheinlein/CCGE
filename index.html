@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- CCGE v1.61.7: restaura maximização da tarefa + leitura de PDF sem depender de CDN. -->
+<!-- CCGE v1.61.8: leitura automática após upload + abas com área clicável integral. -->
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
@@ -2144,7 +2144,7 @@ function ccgeInstallInvoiceDropCapture(){
  document.documentElement.dataset.invoiceDropCapture='1';
  document.addEventListener('dragover',e=>{const z=e.target.closest?.('.invoice-dropzone');if(!z)return;e.preventDefault();e.stopPropagation();if(e.dataTransfer)e.dataTransfer.dropEffect='copy';z.classList.add('dragover')},true);
  document.addEventListener('dragleave',e=>{const z=e.target.closest?.('.invoice-dropzone');if(z)z.classList.remove('dragover')},true);
- document.addEventListener('drop',async e=>{const z=e.target.closest?.('.invoice-dropzone');if(!z)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();z.classList.remove('dragover');const file=e.dataTransfer?.files?.[0];if(!file)return toast('Nenhum arquivo válido foi recebido.');const id=String(z.dataset.invoiceId||'');const t=modalTask();const i=(t.invoices||[]).findIndex(x=>String(x?.id||'')===id);if(i<0)return toast('Medição não localizada. Reabra a tarefa e tente novamente.');toast('Arquivo recebido. Enviando...');try{const base=window.ccgeBaseAttachInvoiceFile;if(typeof base!=='function')throw new Error('Rotina base de anexo indisponível.');await base(i,file);const now=modalTask(),j=(now.invoices||[]).findIndex(x=>String(x?.id||'')===id);if(j>=0&&typeof window.ccgeAnalyzeInvoiceFile==='function')await window.ccgeAnalyzeInvoiceFile(file,j)}catch(err){console.error('Drop da medição:',err);toast('Falha ao anexar: '+(err?.message||'erro desconhecido'))}},true);
+ document.addEventListener('drop',async e=>{const z=e.target.closest?.('.invoice-dropzone');if(!z)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();z.classList.remove('dragover');const file=e.dataTransfer?.files?.[0];if(!file)return toast('Nenhum arquivo válido foi recebido.');const id=String(z.dataset.invoiceId||'');const t=modalTask();const i=(t.invoices||[]).findIndex(x=>String(x?.id||'')===id);if(i<0)return toast('Medição não localizada. Reabra a tarefa e tente novamente.');toast('Arquivo recebido. Lendo documento...');try{if(typeof window.ccgeAnalyzeInvoiceFile==='function')await window.ccgeAnalyzeInvoiceFile(file,i);const after=modalTask(),j=(after.invoices||[]).findIndex(x=>String(x?.id||'')===id);const base=window.ccgeBaseAttachInvoiceFile;if(typeof base!=='function')throw new Error('Rotina base de anexo indisponível.');await base(j>=0?j:i,file)}catch(err){console.error('Drop da medição:',err);toast('Falha ao anexar: '+(err?.message||'erro desconhecido'))}},true);
 }
 ccgeInstallInvoiceDropCapture();
 function ccgeProtectFileDrop(){if(document.documentElement.dataset.ccgeDropProtected==='1')return;document.documentElement.dataset.ccgeDropProtected='1';['dragenter','dragover','drop'].forEach(ev=>document.addEventListener(ev,e=>{if(e.dataTransfer?.types?.includes?.('Files'))e.preventDefault()},false))}
@@ -2321,6 +2321,11 @@ supabaseClient.auth.onAuthStateChange((event)=>{
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',setupMetricResize);else setupMetricResize();
 })();
 </script>
+<style>
+#taskModal .tabs button{position:relative!important;display:flex!important;align-items:center!important;justify-content:center!important;min-height:52px!important;cursor:pointer!important;user-select:none!important;-webkit-user-select:none!important;pointer-events:auto!important}
+#taskModal .tabs button *{pointer-events:none!important;user-select:none!important}
+#taskModal .tabs button::before{content:"";position:absolute;inset:0;cursor:pointer}
+</style>
 <script>
 /* v1.61.6 — handles exclusivos da janela Gerenciar tarefa */
 (function ccgeTaskModalResize616(){
@@ -2365,7 +2370,7 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 <script>
 /* v1.59.5.1 — atualização automática segura, sem depender de F5 */
 (function ccgeVersionWatch(){
- const LOCAL_VERSION='1.61.7';
+ const LOCAL_VERSION='1.61.8';
  let busy=false;
  function hasUnsavedWork(){
    const tm=document.getElementById('taskModal');
@@ -2428,7 +2433,7 @@ supabaseClient.auth.onAuthStateChange((event)=>{
  return o}
  window.ccgeAnalyzeInvoiceFile=async function(file,i){try{toast('Analisando documento...');let sug=filenameSuggestions(file.name),txt='',readStatus='nome do arquivo';if(/pdf/i.test(file.type||'')||/\.pdf$/i.test(file.name||'')){try{txt=await pdfText(file);if(txt)readStatus='texto do PDF'}catch(e){console.warn('Leitor PDF indisponível',e)}if(txt)sug={...sug,...contentSuggestions(txt)}}let t=modalTask(),x=t.invoices?.[i];if(!x)return false;let changed=[];for(const k of ['supplier','number','measurement','competence','issueDate','dueDate','amount']){if((x[k]===undefined||x[k]===null||x[k]===''||x[k]===0)&&sug[k]){x[k]=sug[k];changed.push(k)}}document.getElementById('taskModal').dataset.temp=JSON.stringify(t);renderInvoices(t);if(changed.length)toast(`Leitura concluída por ${readStatus}: ${changed.length} campo(s) preenchido(s). Confira antes de salvar.`);else if(txt)toast('PDF lido, mas o layout não corresponde aos padrões reconhecidos.');else toast('Arquivo anexado. Não foi possível obter texto do PDF neste navegador.');return changed.length>0}catch(e){console.error('Leitura automática:',e);toast('Arquivo anexado; leitura automática não pôde ser concluída.');return false}}
 
- const originalAttach=window.ccgeBaseAttachInvoiceFile;window.attachInvoiceFile=async function(i,explicitFile){const input=document.getElementById(`invoiceFile_${i}`),file=explicitFile||input?.files?.[0];if(!file)return;const t=modalTask(),id=t.invoices?.[i]?.id;if(!id)throw new Error('Medição não localizada.');await originalAttach(i,file);const current=modalTask(),j=(current.invoices||[]).findIndex(x=>x.id===id);if(j<0)return;await window.ccgeAnalyzeInvoiceFile(file,j)}
+ const originalAttach=window.ccgeBaseAttachInvoiceFile;window.attachInvoiceFile=async function(i,explicitFile){const input=document.getElementById(`invoiceFile_${i}`),file=explicitFile||input?.files?.[0];if(!file)return;const t=modalTask(),id=t.invoices?.[i]?.id;if(!id)throw new Error('Medição não localizada.');if(typeof window.ccgeAnalyzeInvoiceFile==='function')await window.ccgeAnalyzeInvoiceFile(file,i);const current=modalTask(),j=(current.invoices||[]).findIndex(x=>x.id===id);if(j<0)throw new Error('Medição alterada durante a leitura.');await originalAttach(j,file)}
 })();
 </script><style>
 /* v1.60.1 — correção definitiva de colisão das ações do cabeçalho */
