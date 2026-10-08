@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- CCGE v1.60.5: Gestão de Tarefas compacta + melhor aproveitamento vertical. -->
+<!-- CCGE v1.60.6: exclusão direta por ID em Medições/Custos Reais. -->
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
@@ -1630,7 +1630,7 @@ function invoiceDateField(i,key,label,value){
 function renderInvoices(t){
  let a=t.invoices||[];
  $('#invoiceList').innerHTML=a.length?a.map((x,i)=>`<section class="invoice-card ${x.situation==='Cancelada'?'invoice-cancelled':''}">
- <div class="invoice-card-head"><div><b>Medição / custo real ${String(i+1).padStart(2,'0')}</b><small>${x.amount?brl(Number(x.amount||0)):'Registro em preenchimento'}</small></div><button type="button" class="danger compact-action ccge-delete-invoice" data-index="${i}">Excluir</button></div>
+ <div class="invoice-card-head"><div><b>Medição / custo real ${String(i+1).padStart(2,'0')}</b><small>${x.amount?brl(Number(x.amount||0)):'Registro em preenchimento'}</small></div><button type="button" class="danger compact-action ccge-delete-invoice" data-index="${i}" data-invoice-id="${esc(x.id||'')}">Excluir</button></div>
  <div class="invoice-grid invoice-grid-top">
   <div class="field"><label>Competência</label><input class="ccge-competence-text" inputmode="numeric" maxlength="7" value="${esc(formatCompetenceBR(x.competence||''))}" placeholder="__/____" onchange="editInvoiceCompetenceBR(${i},this.value)"></div>
   <div class="field"><label>Nº da medição</label><input value="${esc(x.measurement||'')}" onchange="editInvoice(${i},'measurement',this.value)"></div>
@@ -1645,7 +1645,7 @@ function renderInvoices(t){
   <div class="field invoice-span-all"><label>Descrição da medição / despesa</label><input value="${esc(x.description||'')}" onchange="editInvoice(${i},'description',this.value)"></div>
  </div>
  <div class="invoice-upload-block"><label>Documento / comprovante</label>
- ${x.attachment?.name?`<div class="invoice-attached"><span><b>${esc(x.attachment.name)}</b><small>Arquivo vinculado à medição</small></span><div class="invoice-file-actions"><button type="button" class="secondary compact-action" onclick="openInvoiceAttachment(${i})">Abrir</button><button type="button" class="danger compact-action ccge-delete-invoice-attachment" data-index="${i}">Excluir</button></div></div>`:`<label class="invoice-dropzone drop-zone" data-invoice-index="${i}" for="invoiceFile_${i}"><b>Arraste o arquivo aqui ou clique para selecionar</b><small>NF, medição, comprovante ou documento relacionado</small><em class="invoice-analysis-note">O arquivo será anexado. Leitura automática ainda não habilitada.</em><input type="file" id="invoiceFile_${i}" onchange="attachInvoiceFile(${i})"></label>`}
+ ${x.attachment?.name?`<div class="invoice-attached"><span><b>${esc(x.attachment.name)}</b><small>Arquivo vinculado à medição</small></span><div class="invoice-file-actions"><button type="button" class="secondary compact-action" onclick="openInvoiceAttachment(${i})">Abrir</button><button type="button" class="danger compact-action ccge-delete-invoice-attachment" data-index="${i}" data-invoice-id="${esc(x.id||'')}">Excluir</button></div></div>`:`<label class="invoice-dropzone drop-zone" data-invoice-index="${i}" for="invoiceFile_${i}"><b>Arraste o arquivo aqui ou clique para selecionar</b><small>NF, medição, comprovante ou documento relacionado</small><em class="invoice-analysis-note">O arquivo será anexado. Leitura automática ainda não habilitada.</em><input type="file" id="invoiceFile_${i}" onchange="attachInvoiceFile(${i})"></label>`}
  </div></section>`).join(''):'<div class="empty" style="padding:14px">Nenhuma medição ou despesa real cadastrada.</div>';
  renderTaskCostSummary(t)
 }
@@ -2326,7 +2326,7 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 <script>
 /* v1.59.5.1 — atualização automática segura, sem depender de F5 */
 (function ccgeVersionWatch(){
- const LOCAL_VERSION='1.60.5';
+ const LOCAL_VERSION='1.60.6';
  let busy=false;
  function hasUnsavedWork(){
    const tm=document.getElementById('taskModal');
@@ -2491,5 +2491,48 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 .modal .dialog>.dialog-body{min-height:0}
 .modal .dialog.ccge-expanded>.dialog-body{overflow:auto!important}
 </style>
+
+
+<script>
+/* v1.60.6 — ações por ID estável; não dependem do índice visual */
+(function ccgeFix1606(){
+ function m(){return document.getElementById('taskModal')}
+ function read(){try{return JSON.parse(m()?.dataset.temp||'{}')}catch(e){console.error(e);return {}}}
+ function write(t){const el=m();if(!el)return;el.dataset.temp=JSON.stringify(t);renderInvoices(t);renderTaskCostSummary(t)}
+ function find(t,id,index){
+   t.invoices=Array.isArray(t.invoices)?t.invoices:[];
+   if(id){const n=t.invoices.findIndex(x=>String(x?.id||'')===String(id));if(n>=0)return n}
+   return Number.isInteger(index)&&index>=0&&index<t.invoices.length?index:-1;
+ }
+ function removeRow(btn){
+   const t=read(),i=find(t,btn.dataset.invoiceId,Number(btn.dataset.index));
+   if(i<0)return toast('Não foi possível localizar esta medição.');
+   const inv=t.invoices[i];
+   if(inv?.attachment)queueTaskAttachmentDelete(inv.attachment);
+   t.invoices.splice(i,1);write(t);
+   toast('Medição removida. Clique em Salvar alterações para confirmar.');
+ }
+ function removeFile(btn){
+   const t=read(),i=find(t,btn.dataset.invoiceId,Number(btn.dataset.index));
+   if(i<0||!t.invoices[i]?.attachment)return toast('Não foi possível localizar este comprovante.');
+   queueTaskAttachmentDelete(t.invoices[i].attachment);
+   t.invoices[i].attachment=null;write(t);
+   toast('Comprovante removido. Clique em Salvar alterações para confirmar.');
+ }
+ document.addEventListener('click',function(e){
+   const b=e.target.closest?.('#taskModal button.ccge-delete-invoice,#taskModal button.ccge-delete-invoice-attachment');
+   if(!b)return;
+   e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+   if(b.classList.contains('ccge-delete-invoice-attachment'))removeFile(b);else removeRow(b);
+ },true);
+ document.addEventListener('click',function(e){
+   const b=e.target.closest?.('#taskModal .ccge-expand-btn');if(!b)return;
+   e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+   const d=m()?.querySelector('.dialog');if(!d)return;
+   const on=!d.classList.contains('ccge-expanded');d.classList.toggle('ccge-expanded',on);
+   b.textContent=on?'↙':'↗';b.title=on?'Restaurar janela':'Expandir janela';b.setAttribute('aria-label',b.title);
+ },true);
+})();
+</script>
 
 </body></html>
