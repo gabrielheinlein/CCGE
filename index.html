@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- CCGE v1.61.8: leitura automática após upload + abas com área clicável integral. -->
+<!-- CCGE v1.61.9: corrige conflito toast + persistência de anexo + hitbox das abas. -->
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
@@ -1080,6 +1080,7 @@ function save(msg){
  scheduleReactiveRender();
 }
 function toast(t){const x=$('#toast');x.textContent=t;x.classList.add('show');setTimeout(()=>x.classList.remove('show'),1800)}
+window.ccgeNotify=function(t){const x=document.getElementById('toast');if(!x)return; x.textContent=String(t??'');x.classList.add('show');setTimeout(()=>x.classList.remove('show'),1800)}
 function activity(id){return state.activities.find(x=>x.id===id)||{name:'',phaseId:''}}
 function phase(id){return state.phases.find(x=>x.id===id)||{name:'Sem etapa'}}
 function context(t){
@@ -1669,7 +1670,7 @@ window.openInvoiceDatePicker=(i,key,btn)=>{const input=btn?.parentElement?.query
 window.pickInvoiceDate=(i,key,input)=>editInvoice(i,key,input.value||'');
 function validateInvoicesForSave(t){const rows=t?.invoices||[];for(let i=0;i<rows.length;i++){const x=rows[i]||{},hasData=!!(x.competence||x.measurement||x.issueDate||x.supplier||x.number||x.description||Number(x.amount||0)||x.dueDate||x.situation||x.attachment);if(!hasData)continue;if(!x.situation)return `Selecione a situação da medição / custo real ${String(i+1).padStart(2,'0')}.`;if(Number(x.amount||0)<0)return `O valor real da medição ${String(i+1).padStart(2,'0')} não pode ser negativo.`}return ''}
 $('#addInvoice').onclick=()=>{let t=modalTask();t.invoices=t.invoices||[];t.invoices.push({id:uid('inv'),competence:'',measurement:'',issueDate:'',supplier:'',number:'',description:'',amount:0,dueDate:'',situation:'',attachment:null});$('#taskModal').dataset.temp=JSON.stringify(t);renderInvoices(t)};
-window.attachInvoiceFile=async(i,explicitFile)=>{const input=$(`#invoiceFile_${i}`),file=explicitFile||input?.files?.[0];if(!file)return;try{const t0=modalTask(),invoiceId=t0.invoices?.[i]?.id;if(!invoiceId)return toast('Medição não localizada para anexar o arquivo.');const uploaded=await uploadCCGEFile(file,`tarefas/${editingId||'nova'}/notas-fiscais`);uploaded._pendingUpload=true;let t=modalTask(),j=(t.invoices||[]).findIndex(x=>x.id===invoiceId);if(j<0){await deleteCCGEAttachment(uploaded);return toast('A medição foi alterada durante o upload. Tente novamente.')}t.invoices[j].attachment=uploaded;$('#taskModal').dataset.temp=JSON.stringify(t);renderInvoices(t);toast('Arquivo anexado. Salve a tarefa para confirmar.')}catch(err){console.error(err);toast(err.message||'Falha no upload da NF')}};
+window.attachInvoiceFile=async(i,explicitFile)=>{const input=$(`#invoiceFile_${i}`),file=explicitFile||input?.files?.[0];if(!file)return;try{const t0=modalTask(),invoiceId=t0.invoices?.[i]?.id;if(!invoiceId)return window.ccgeNotify('Medição não localizada para anexar o arquivo.');const uploaded=await uploadCCGEFile(file,`tarefas/${editingId||'nova'}/notas-fiscais`);uploaded._pendingUpload=true;let t=modalTask(),j=(t.invoices||[]).findIndex(x=>x.id===invoiceId);if(j<0){await deleteCCGEAttachment(uploaded);return window.ccgeNotify('A medição foi alterada durante o upload. Tente novamente.')}t.invoices[j].attachment=uploaded;$('#taskModal').dataset.temp=JSON.stringify(t);renderInvoices(t);window.ccgeNotify('Arquivo anexado. Salve a tarefa para confirmar.')}catch(err){console.error(err);window.ccgeNotify(err.message||'Falha no upload da NF')}};
 window.ccgeBaseAttachInvoiceFile=window.attachInvoiceFile;
 window.openInvoiceAttachment=i=>openCCGEAttachment(modalTask().invoices?.[i]?.attachment);
 function renderDeliverables(t){let a=t.deliverables||[];$('#deliverableList').innerHTML=a.length?a.map((x,i)=>`<div class="mini-row"><input value="${esc(x.name||'')}" placeholder="Entregável" onchange="editDeliverable(${i},'name',this.value)"><input value="${esc(x.revision||'')}" placeholder="Revisão" onchange="editDeliverable(${i},'revision',this.value)"><input type="date" min="1900-01-01" max="2100-12-31" value="${esc(x.dueDate||'')}" onchange="editDeliverable(${i},'dueDate',this.value)"><select onchange="editDeliverable(${i},'status',this.value)">${['Planejado','Em elaboração','Em análise','Aprovado','Reprovado'].map(v=>`<option ${x.status===v?'selected':''}>${v}</option>`).join('')}</select><button type="button" onclick="removeDeliverable(${i})">Remover</button></div>`).join(''):'<div class="empty" style="padding:14px">Nenhum entregável cadastrado.</div>'}
@@ -2144,7 +2145,7 @@ function ccgeInstallInvoiceDropCapture(){
  document.documentElement.dataset.invoiceDropCapture='1';
  document.addEventListener('dragover',e=>{const z=e.target.closest?.('.invoice-dropzone');if(!z)return;e.preventDefault();e.stopPropagation();if(e.dataTransfer)e.dataTransfer.dropEffect='copy';z.classList.add('dragover')},true);
  document.addEventListener('dragleave',e=>{const z=e.target.closest?.('.invoice-dropzone');if(z)z.classList.remove('dragover')},true);
- document.addEventListener('drop',async e=>{const z=e.target.closest?.('.invoice-dropzone');if(!z)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();z.classList.remove('dragover');const file=e.dataTransfer?.files?.[0];if(!file)return toast('Nenhum arquivo válido foi recebido.');const id=String(z.dataset.invoiceId||'');const t=modalTask();const i=(t.invoices||[]).findIndex(x=>String(x?.id||'')===id);if(i<0)return toast('Medição não localizada. Reabra a tarefa e tente novamente.');toast('Arquivo recebido. Lendo documento...');try{if(typeof window.ccgeAnalyzeInvoiceFile==='function')await window.ccgeAnalyzeInvoiceFile(file,i);const after=modalTask(),j=(after.invoices||[]).findIndex(x=>String(x?.id||'')===id);const base=window.ccgeBaseAttachInvoiceFile;if(typeof base!=='function')throw new Error('Rotina base de anexo indisponível.');await base(j>=0?j:i,file)}catch(err){console.error('Drop da medição:',err);toast('Falha ao anexar: '+(err?.message||'erro desconhecido'))}},true);
+ document.addEventListener('drop',async e=>{const z=e.target.closest?.('.invoice-dropzone');if(!z)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();z.classList.remove('dragover');const file=e.dataTransfer?.files?.[0];if(!file)return window.ccgeNotify('Nenhum arquivo válido foi recebido.');const id=String(z.dataset.invoiceId||'');const t=modalTask();const i=(t.invoices||[]).findIndex(x=>String(x?.id||'')===id);if(i<0)return window.ccgeNotify('Medição não localizada. Reabra a tarefa e tente novamente.');window.ccgeNotify('Arquivo recebido. Lendo documento...');try{if(typeof window.ccgeAnalyzeInvoiceFile==='function')await window.ccgeAnalyzeInvoiceFile(file,i);const after=modalTask(),j=(after.invoices||[]).findIndex(x=>String(x?.id||'')===id);const base=window.ccgeBaseAttachInvoiceFile;if(typeof base!=='function')throw new Error('Rotina base de anexo indisponível.');await base(j>=0?j:i,file)}catch(err){console.error('Drop da medição:',err);window.ccgeNotify('Falha ao anexar: '+(err?.message||'erro desconhecido'))}},true);
 }
 ccgeInstallInvoiceDropCapture();
 function ccgeProtectFileDrop(){if(document.documentElement.dataset.ccgeDropProtected==='1')return;document.documentElement.dataset.ccgeDropProtected='1';['dragenter','dragover','drop'].forEach(ev=>document.addEventListener(ev,e=>{if(e.dataTransfer?.types?.includes?.('Files'))e.preventDefault()},false))}
@@ -2322,6 +2323,14 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 })();
 </script>
 <style>
+#taskModal .ccge-resize-handle{display:none!important;pointer-events:none!important}
+#taskModal .tabs{position:relative!important;z-index:1001!important}
+#taskModal .tabs button{position:relative!important;z-index:1002!important;cursor:pointer!important;user-select:none!important;-webkit-user-select:none!important;pointer-events:auto!important}
+#taskModal .tabs button::before{content:"";position:absolute!important;inset:0!important;z-index:0!important;cursor:pointer!important;pointer-events:auto!important}
+#taskModal .tabs button{isolation:isolate}
+#taskModal .tabs button::before{z-index:-1!important}
+</style>
+<style>
 #taskModal .tabs button{position:relative!important;display:flex!important;align-items:center!important;justify-content:center!important;min-height:52px!important;cursor:pointer!important;user-select:none!important;-webkit-user-select:none!important;pointer-events:auto!important}
 #taskModal .tabs button *{pointer-events:none!important;user-select:none!important}
 #taskModal .tabs button::before{content:"";position:absolute;inset:0;cursor:pointer}
@@ -2329,7 +2338,7 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 <script>
 /* v1.61.6 — handles exclusivos da janela Gerenciar tarefa */
 (function ccgeTaskModalResize616(){
- const edges=['n','s','e','w','ne','nw','se','sw'],GAP=4,MIN_W=640,MIN_H=360;
+ const edges=['e','w','ne','nw','se','sw'],GAP=4,MIN_W=640,MIN_H=360;
  function install(){const d=document.querySelector('#taskModal .dialog');if(!d||d.dataset.resize616)return;d.dataset.resize616='1';d.querySelectorAll('.ccge-resize-handle').forEach(x=>x.remove());
   edges.forEach(edge=>{const h=document.createElement('div');h.className='ccge-task-resize '+edge;h.dataset.edge=edge;d.appendChild(h);h.addEventListener('pointerdown',e=>{if(d.classList.contains('ccge-expanded'))return;e.preventDefault();e.stopPropagation();const r=d.getBoundingClientRect(),sx=e.clientX,sy=e.clientY;h.setPointerCapture?.(e.pointerId);d.style.setProperty('position','fixed','important');d.style.setProperty('left',r.left+'px','important');d.style.setProperty('top',r.top+'px','important');d.style.setProperty('right','auto','important');d.style.setProperty('bottom','auto','important');d.style.setProperty('width',r.width+'px','important');d.style.setProperty('height',r.height+'px','important');d.style.setProperty('max-width','none','important');d.style.setProperty('max-height','none','important');
    const move=ev=>{const dx=ev.clientX-sx,dy=ev.clientY-sy;let left=r.left,top=r.top,w=r.width,hh=r.height;if(edge.includes('e'))w+=dx;if(edge.includes('s'))hh+=dy;if(edge.includes('w')){left+=dx;w-=dx}if(edge.includes('n')){top+=dy;hh-=dy}const mw=Math.min(MIN_W,innerWidth-2*GAP),mh=Math.min(MIN_H,innerHeight-2*GAP);if(w<mw){if(edge.includes('w'))left-=mw-w;w=mw}if(hh<mh){if(edge.includes('n'))top-=mh-hh;hh=mh}left=Math.max(GAP,left);top=Math.max(GAP,top);w=Math.min(w,innerWidth-left-GAP);hh=Math.min(hh,innerHeight-top-GAP);d.style.setProperty('left',left+'px','important');d.style.setProperty('top',top+'px','important');d.style.setProperty('width',w+'px','important');d.style.setProperty('height',hh+'px','important')};const up=()=>{h.removeEventListener('pointermove',move);h.removeEventListener('pointerup',up);h.removeEventListener('pointercancel',up)};h.addEventListener('pointermove',move);h.addEventListener('pointerup',up);h.addEventListener('pointercancel',up)});
@@ -2370,7 +2379,7 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 <script>
 /* v1.59.5.1 — atualização automática segura, sem depender de F5 */
 (function ccgeVersionWatch(){
- const LOCAL_VERSION='1.61.8';
+ const LOCAL_VERSION='1.61.9';
  let busy=false;
  function hasUnsavedWork(){
    const tm=document.getElementById('taskModal');
@@ -2431,7 +2440,7 @@ supabaseClient.auth.onAuthStateChange((event)=>{
  m=firstMatch(t,[/(?:COMPET[EÊ]NCIA|PER[IÍ]ODO\s+DE\s+REFER[EÊ]NCIA)\s*[:\-]?\s*(0?[1-9]|1[0-2])[\/-](\d{4})/i]);if(m)o.competence=`${m[2]}-${String(Number(m[1])).padStart(2,'0')}`;
  m=firstMatch(t,[/(?:MEDIÇ[AÃ]O|BOLETIM\s+DE\s+MEDIÇ[AÃ]O)\s*(?:N[º°.]?|[:#-])?\s*([A-Z0-9.\/-]{1,20})/i]);if(m)o.measurement=m[1];
  return o}
- window.ccgeAnalyzeInvoiceFile=async function(file,i){try{toast('Analisando documento...');let sug=filenameSuggestions(file.name),txt='',readStatus='nome do arquivo';if(/pdf/i.test(file.type||'')||/\.pdf$/i.test(file.name||'')){try{txt=await pdfText(file);if(txt)readStatus='texto do PDF'}catch(e){console.warn('Leitor PDF indisponível',e)}if(txt)sug={...sug,...contentSuggestions(txt)}}let t=modalTask(),x=t.invoices?.[i];if(!x)return false;let changed=[];for(const k of ['supplier','number','measurement','competence','issueDate','dueDate','amount']){if((x[k]===undefined||x[k]===null||x[k]===''||x[k]===0)&&sug[k]){x[k]=sug[k];changed.push(k)}}document.getElementById('taskModal').dataset.temp=JSON.stringify(t);renderInvoices(t);if(changed.length)toast(`Leitura concluída por ${readStatus}: ${changed.length} campo(s) preenchido(s). Confira antes de salvar.`);else if(txt)toast('PDF lido, mas o layout não corresponde aos padrões reconhecidos.');else toast('Arquivo anexado. Não foi possível obter texto do PDF neste navegador.');return changed.length>0}catch(e){console.error('Leitura automática:',e);toast('Arquivo anexado; leitura automática não pôde ser concluída.');return false}}
+ window.ccgeAnalyzeInvoiceFile=async function(file,i){try{window.ccgeNotify('Analisando documento...');let sug=filenameSuggestions(file.name),txt='',readStatus='nome do arquivo';if(/pdf/i.test(file.type||'')||/\.pdf$/i.test(file.name||'')){try{txt=await pdfText(file);if(txt)readStatus='texto do PDF'}catch(e){console.warn('Leitor PDF indisponível',e)}if(txt)sug={...sug,...contentSuggestions(txt)}}let t=modalTask(),x=t.invoices?.[i];if(!x)return false;let changed=[];for(const k of ['supplier','number','measurement','competence','issueDate','dueDate','amount']){if((x[k]===undefined||x[k]===null||x[k]===''||x[k]===0)&&sug[k]){x[k]=sug[k];changed.push(k)}}document.getElementById('taskModal').dataset.temp=JSON.stringify(t);renderInvoices(t);if(changed.length)window.ccgeNotify(`Leitura concluída por ${readStatus}: ${changed.length} campo(s) preenchido(s). Confira antes de salvar.`);else if(txt)window.ccgeNotify('PDF lido, mas o layout não corresponde aos padrões reconhecidos.');else window.ccgeNotify('Arquivo anexado. Não foi possível obter texto do PDF neste navegador.');return changed.length>0}catch(e){console.error('Leitura automática:',e);window.ccgeNotify('Arquivo anexado; leitura automática não pôde ser concluída.');return false}}
 
  const originalAttach=window.ccgeBaseAttachInvoiceFile;window.attachInvoiceFile=async function(i,explicitFile){const input=document.getElementById(`invoiceFile_${i}`),file=explicitFile||input?.files?.[0];if(!file)return;const t=modalTask(),id=t.invoices?.[i]?.id;if(!id)throw new Error('Medição não localizada.');if(typeof window.ccgeAnalyzeInvoiceFile==='function')await window.ccgeAnalyzeInvoiceFile(file,i);const current=modalTask(),j=(current.invoices||[]).findIndex(x=>x.id===id);if(j<0)throw new Error('Medição alterada durante a leitura.');await originalAttach(j,file)}
 })();
