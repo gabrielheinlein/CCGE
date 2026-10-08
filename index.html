@@ -1604,7 +1604,7 @@ window.attachAdditiveFiles=async i=>{
  }finally{additiveUploadInProgress[i]=false}
 };
 window.openAdditiveFile=(i,j)=>openCCGEAttachment(modalTask().additiveRecords?.[i]?.files?.[j]);
-window.removeAdditiveFile=async(i,j)=>{let t=modalTask(),f=t.additiveRecords?.[i]?.files?.[j];queueTaskAttachmentDelete(f);t.additiveRecords?.[i]?.files?.splice(j,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderAdditives(t)};
+window.removeAdditiveFile=async(i,j)=>{let t=modalTask(),a=t.additiveRecords?.[i],f=a?.files?.[j];if(!a||!f)return toast('Arquivo do aditivo não localizado.');queueTaskAttachmentDelete(f);a.files.splice(j,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderAdditives(t);toast('Arquivo do aditivo removido. Salve as alterações para confirmar.');};
 function renderMilestones(t){
  let a=t.milestones||[];
  $('#milestoneList').innerHTML=a.length?a.map((x,i)=>`<div class="mini-row"><input value="${esc(x.name||'')}" placeholder="Marco" onchange="editMilestone(${i},'name',this.value)"><input type="date" min="1900-01-01" max="2100-12-31" value="${esc(x.plannedDate||'')}" onchange="editMilestone(${i},'plannedDate',this.value)"><input type="date" min="1900-01-01" max="2100-12-31" value="${esc(x.actualDate||'')}" onchange="editMilestone(${i},'actualDate',this.value)"><select onchange="editMilestone(${i},'status',this.value)">${['Planejado','Atingido','Atrasado'].map(v=>`<option ${x.status===v?'selected':''}>${v}</option>`).join('')}</select><button type="button" onclick="removeMilestone(${i})">Remover</button></div>`).join(''):'<div class="empty" style="padding:14px">Nenhum marco cadastrado.</div>';
@@ -1709,7 +1709,7 @@ function renderMapFiles(t){
  $('#mapFileList').innerHTML=files.length?files.map((f,i)=>`<div class="attachment-item"><span>📎</span><div class="file-meta"><a class="file-link ccge-storage-link" data-kind="map" data-index="${i}" target="_blank" rel="noopener">${esc(f.name)}</a><small>${formatBytes(f.size)} · ${attachmentDate(f)}</small></div><button type="button" class="attachment-open" onclick="openPreparedAttachment('map',${i})">Abrir</button><button type="button" class="attachment-remove" onclick="removeMapFile(${i})">Remover</button></div>`).join(''):'<div class="empty" style="padding:14px">Nenhum arquivo anexado.</div>';
  prepareAttachmentLinks('map');
 }
-window.removeMapFile=async i=>{let t=modalTask();t.mapFiles=t.mapFiles||[];queueTaskAttachmentDelete(t.mapFiles[i]);t.mapFiles.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderMapFiles(t)};
+window.removeMapFile=async i=>{let t=modalTask();t.mapFiles=Array.isArray(t.mapFiles)?t.mapFiles:[];const f=t.mapFiles[i];if(!f)return toast('Arquivo não localizado.');queueTaskAttachmentDelete(f);t.mapFiles.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderMapFiles(t);toast('Arquivo removido. Salve as alterações para confirmar.');};
 let mapUploadInProgress=false;
 async function submitMapFiles(){
  if(mapUploadInProgress)return;
@@ -1726,7 +1726,7 @@ function renderDocFiles(t){
  $('#docFileList').innerHTML=files.length?files.map((f,i)=>`<div class="attachment-item"><span>📄</span><div class="file-meta"><a class="file-link ccge-storage-link" data-kind="doc" data-index="${i}" target="_blank" rel="noopener">${esc(f.name)}</a><small>${formatBytes(f.size)} · ${attachmentDate(f)}</small></div><button type="button" class="attachment-open" onclick="openPreparedAttachment('doc',${i})">Abrir</button><button type="button" class="attachment-remove" onclick="removeDocFile(${i})">Remover</button></div>`).join(''):'<div class="empty" style="padding:14px">Nenhum arquivo anexado.</div>';
  prepareAttachmentLinks('doc');
 }
-window.removeDocFile=async i=>{let t=modalTask();t.documents=t.documents||[];let f=t.documents[i];queueTaskAttachmentDelete(f);t.documents.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderDocFiles(t)};
+window.removeDocFile=async i=>{let t=modalTask();t.documents=Array.isArray(t.documents)?t.documents:[];const f=t.documents[i];if(!f)return toast('Arquivo não localizado.');queueTaskAttachmentDelete(f);t.documents.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderDocFiles(t);toast('Arquivo removido. Salve as alterações para confirmar.');};
 let docUploadInProgress=false;
 async function submitDocFiles(){
  if(docUploadInProgress)return;
@@ -1748,7 +1748,7 @@ async function prepareVideoLinks(){
  for(const a of document.querySelectorAll('.video-storage-link')){const i=Number(a.dataset.index),f=modalTask().videos?.[i];try{a.href=await videoUrl(f)}catch(err){a.removeAttribute('href');console.error(err)}}
 }
 window.openVideoAttachment=async i=>{const tab=window.open('about:blank','_blank');try{const url=await videoUrl(modalTask().videos?.[i]);if(tab)tab.location.replace(url);else toast('O navegador bloqueou a nova aba. Clique no nome do vídeo.')}catch(err){if(tab)tab.close();console.error(err);toast(`Não foi possível abrir o vídeo: ${err.message||'erro desconhecido'}`)}};
-window.removeVideo=async i=>{let t=modalTask();t.videos=t.videos||[];queueTaskAttachmentDelete(t.videos[i]);t.videos.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderVideos(t)};
+window.removeVideo=async i=>{let t=modalTask();t.videos=Array.isArray(t.videos)?t.videos:[];const f=t.videos[i];if(!f)return toast('Vídeo não localizado.');queueTaskAttachmentDelete(f);t.videos.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderVideos(t);toast('Vídeo removido. Salve as alterações para confirmar.');};
 let videoUploadInProgress=false;
 async function submitVideos(){
  if(videoUploadInProgress)return;
@@ -1776,7 +1776,7 @@ async function photoUrl(p){
 async function preparePhotoPreviews(){
  for(const img of document.querySelectorAll('.photo-storage-preview')){const i=Number(img.dataset.index);try{img.src=await photoUrl(modalTask().photos?.[i])}catch(err){console.error(err);img.alt='Imagem indisponível'}}
 }
-window.removePhoto=async i=>{let t=modalTask();t.photos=t.photos||[];queueTaskAttachmentDelete(t.photos[i]);t.photos.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderPhotos(t)};
+window.removePhoto=async i=>{let t=modalTask();t.photos=Array.isArray(t.photos)?t.photos:[];const f=t.photos[i];if(!f)return toast('Imagem não localizada.');queueTaskAttachmentDelete(f);t.photos.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderPhotos(t);toast('Imagem removida. Salve as alterações para confirmar.');};
 let photoUploadInProgress=false;
 async function submitPhotos(){
  if(photoUploadInProgress)return;
