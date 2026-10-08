@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- CCGE v1.62.5: CRD com um lançamento por linha e documento compartilhado seguro. -->
+<!-- CCGE v1.62.6: parser CRD tolerante ao layout e expansão direta da tarefa. -->
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
@@ -581,6 +581,7 @@ async function carregarEstadoNuvem() {
 </script>
 
 <!-- CCGE v1.52 candidato: inteligência comparativa + relatórios Excel -->
+<style id="ccge-task-expand-1626">#taskModal .dialog.ccge-expanded{position:fixed!important;left:8px!important;top:8px!important;right:auto!important;bottom:auto!important;width:calc(100vw - 16px)!important;height:calc(100vh - 16px)!important;max-width:none!important;max-height:none!important;min-width:0!important;min-height:0!important;margin:0!important;resize:none!important;overflow:hidden!important;display:flex!important;flex-direction:column!important}#taskModal .dialog.ccge-expanded>.dialog-body{flex:1 1 auto!important;min-height:0!important;max-height:none!important;overflow:auto!important}</style>
 </head>
 
 <body>
@@ -830,7 +831,7 @@ async function carregarEstadoNuvem() {
  <div id="supplierContactHistory" class="mini-list"></div>
 </div><div class="dialog-foot"><button class="secondary" id="cancelSupplier">Cancelar</button><button class="primary" id="saveSupplier">Salvar fornecedor</button></div></div></div>
 
-<div class="modal" id="taskModal"><div class="dialog"><div class="dialog-head"><h3 id="taskModalTitle">Tarefa</h3><button class="icon-btn" data-close>✕</button></div><div class="dialog-body"><div class="form-grid" id="taskForm"></div><div class="tabs"><button class="active" data-tab="general">Geral</button><button data-tab="management">Gestão</button><button data-tab="costs">Medições / Custos Reais</button><button data-tab="payments">Pagamentos</button><button data-tab="additives">Aditivos</button><button class="project-only" data-tab="projectFinance">Entregáveis</button><button data-tab="documents">Arquivos e documentos</button><button data-tab="images">Imagens da evolução</button><button data-tab="videos">Vídeos</button><button data-tab="history">Histórico</button></div><div class="tab-content active" id="tab-general"><div class="field full"><label>Observações</label><textarea id="taskNotes"></textarea></div><div class="form-grid">
+<div class="modal" id="taskModal"><div class="dialog"><div class="dialog-head"><h3 id="taskModalTitle">Tarefa</h3><div class="dialog-head-actions"><button type="button" class="icon-btn ccge-expand-btn" id="taskExpandBtn" title="Expandir janela" aria-label="Expandir janela" onclick="return window.ccgeToggleTaskExpand(this,event)">↗</button><button class="icon-btn" data-close>✕</button></div></div><div class="dialog-body"><div class="form-grid" id="taskForm"></div><div class="tabs"><button class="active" data-tab="general">Geral</button><button data-tab="management">Gestão</button><button data-tab="costs">Medições / Custos Reais</button><button data-tab="payments">Pagamentos</button><button data-tab="additives">Aditivos</button><button class="project-only" data-tab="projectFinance">Entregáveis</button><button data-tab="documents">Arquivos e documentos</button><button data-tab="images">Imagens da evolução</button><button data-tab="videos">Vídeos</button><button data-tab="history">Histórico</button></div><div class="tab-content active" id="tab-general"><div class="field full"><label>Observações</label><textarea id="taskNotes"></textarea></div><div class="form-grid">
 <div class="field"><label>Mapa de equalização / orçamento</label><input id="taskMap" placeholder="Nome, número ou referência do documento"></div>
 <div class="field"><label>Data aprovação Mapa de Equalização</label><input id="taskMapApprovalDate" type="date" min="1900-01-01" max="2100-12-31"><small style="color:var(--muted)">Data da aprovação formal do mapa.</small></div>
 </div></div>
@@ -2364,10 +2365,11 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 #taskModal .dialog.ccge-expanded .ccge-task-resize{display:none!important}
 </style>
 <script>
-window.ccgeToggleTaskExpand=function(btn,e){e?.preventDefault?.();e?.stopPropagation?.();const d=document.querySelector('#taskModal .dialog');if(!d)return false;const on=d.dataset.taskExpanded!=='1';if(on){d.dataset.taskExpanded='1';d.dataset.prevStyle=d.getAttribute('style')||'';d.classList.add('ccge-expanded');d.style.cssText+=';position:fixed!important;left:8px!important;top:8px!important;right:auto!important;bottom:auto!important;width:calc(100vw - 16px)!important;height:calc(100vh - 16px)!important;max-width:none!important;max-height:none!important;margin:0!important;';}else{d.dataset.taskExpanded='0';d.classList.remove('ccge-expanded');d.setAttribute('style',d.dataset.prevStyle||'');delete d.dataset.prevStyle}btn.textContent=on?'↙':'↗';btn.title=on?'Restaurar janela':'Expandir janela';btn.setAttribute('aria-label',btn.title);return false};
+window.ccgeToggleTaskExpand=function(btn,e){e?.preventDefault?.();e?.stopPropagation?.();const d=document.querySelector('#taskModal .dialog');if(!d)return false;const on=!d.classList.contains('ccge-expanded');if(on){d.dataset.prevStyle=d.getAttribute('style')||'';['left','top','right','bottom','width','height','max-width','max-height','position'].forEach(p=>d.style.removeProperty(p));d.classList.add('ccge-expanded')}else{d.classList.remove('ccge-expanded');d.setAttribute('style',d.dataset.prevStyle||'');delete d.dataset.prevStyle}btn.textContent=on?'↙':'↗';btn.title=on?'Restaurar janela':'Expandir janela';btn.setAttribute('aria-label',btn.title);return false};
 (function setupGlobalModalExpansion(){
  function install(){
   document.querySelectorAll('.modal .dialog').forEach(dialog=>{
+   if(dialog.closest('#taskModal'))return;
    if(dialog.dataset.globalExpandReady)return;dialog.dataset.globalExpandReady='1';
    const head=dialog.querySelector(':scope > .dialog-head');if(!head)return;
    let actions=head.querySelector('.dialog-head-actions');
@@ -2386,7 +2388,7 @@ window.ccgeToggleTaskExpand=function(btn,e){e?.preventDefault?.();e?.stopPropaga
 <script>
 /* v1.59.5.1 — atualização automática segura, sem depender de F5 */
 (function ccgeVersionWatch(){
- const LOCAL_VERSION='1.62.5';
+ const LOCAL_VERSION='1.62.6';
  let busy=false;
  function hasUnsavedWork(){
    const tm=document.getElementById('taskModal');
@@ -2439,7 +2441,7 @@ window.ccgeToggleTaskExpand=function(btn,e){e?.preventDefault?.();e?.stopPropaga
  function parseBRDate(d,m,y){y=String(y);if(y.length===2)y='20'+y;const dd=Number(d),mm=Number(m),yy=Number(y),dt=new Date(yy,mm-1,dd);if(dt.getFullYear()!==yy||dt.getMonth()!==mm-1||dt.getDate()!==dd)return '';return `${yy}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`}
  function firstMatch(txt,patterns){for(const re of patterns){const m=txt.match(re);if(m)return m}return null}
  function ccgeDedupeSupplier(v){let s=String(v||'').replace(/\s+/g,' ').trim(),w=s.split(' ');for(let n=Math.floor(w.length/2);n>=2;n--){const a=w.slice(0,n).join(' '),b=w.slice(n,2*n).join(' ');if(a===b)return a}return s}
- function ccgeParseCRDRows(txt){const t=String(txt||'').replace(/\s+/g,' ').trim();if(!/CRD\s*-\s*Controle de Remessa de Documentos/i.test(t))return[];const out=[],re=/(\d{2}\/\d{2}\/\d{4})\s+(\d+)\s+(\d{3}-\d{2})\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2}\/\d{2}\/\d{4})\s+(\d+)\s+Taxa\s+\d+\s+([\s\S]*?)\s+(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})\s+(MO|MAT)\s+([\d.]+,\d{2})([\s\S]*?)(?=\d{2}\/\d{2}\/\d{4}\s+\d+\s+\d{3}-\d{2}\s+|Sub-total\s*=>)/g;let m;while((m=re.exec(t))){const issue=parseBRDate(...m[4].split('/')),due=parseBRDate(...m[5].split('/')),dm=m[11].match(/Depósito\s+(.+?)$/i);out.push({crd:m[2],measurement:m[3],issueDate:issue,dueDate:due,number:m[6],supplier:ccgeDedupeSupplier(m[7]),cnpj:m[8],type:m[9],amount:parseMoney(m[10]),description:dm?dm[1].trim():'',competence:issue?issue.slice(0,7):''})}return out}
+ function ccgeParseCRDRows(txt){const t=String(txt||'').replace(/\s+/g,' ').trim();if(!/Controle de Remessa de Documentos/i.test(t))return[];const out=[],startRe=/(\d{2}\/\d{2}\/\d{4})\s+(\d+)\s+(\d{3}-\d{2})\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2}\/\d{2}\/\d{4})\s+(\d+)\s+/g,starts=[];let sm;while((sm=startRe.exec(t)))starts.push({index:sm.index,end:startRe.lastIndex,m:sm});for(let k=0;k<starts.length;k++){const st=starts[k],end=k+1<starts.length?starts[k+1].index:(t.search(/Sub-total\s*=>/i)>=0?t.search(/Sub-total\s*=>/i):t.length),body=t.slice(st.end,end),cn=body.match(/(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})/),amt=body.match(/\b(MO|MAT)\s+([\d.]+,\d{2})\b/);if(!cn||!amt)continue;let supplier=body.slice(0,cn.index).replace(/^\s*(?:Taxa\s+\d+\s+)?/i,'').trim(),after=body.slice((amt.index||0)+amt[0].length),dm=after.match(/Depósito\s+(.+?)(?=\s+(?:Retenção|Tipo\s+Doc|Observação|$))/i);const issue=parseBRDate(...st.m[4].split('/')),due=parseBRDate(...st.m[5].split('/'));out.push({crd:st.m[2],measurement:st.m[3],issueDate:issue,dueDate:due,number:st.m[6],supplier:ccgeDedupeSupplier(supplier),cnpj:cn[1],type:amt[1],amount:parseMoney(amt[2]),description:dm?dm[1].trim():'',competence:issue?issue.slice(0,7):''})}return out}
  function ccgeNewInvoiceId(){return 'inv_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9)}
  function contentSuggestions(txt){const o={},t=String(txt||'').replace(/\s+/g,' ');
  let m=firstMatch(t,[/(?:N(?:OTA)?\s*FISCAL|NF(?:-?E)?|N[ÚU]MERO\s*(?:DA\s*)?(?:NF|NOTA))\s*(?:N[º°.]?|[:#-])?\s*(\d{1,15})/i,/\bNF\s*[Nº°#.: -]*([0-9]{2,15})\b/i]);if(m)o.number=m[1];
