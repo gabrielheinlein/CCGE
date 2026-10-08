@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- CCGE v1.60.2: correção de causa das exclusões + cabeçalho + versão visível. -->
+<!-- CCGE v1.60.3: expansão determinística + exclusões robustas + leitura automática de NF. -->
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
@@ -2326,7 +2326,7 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 <script>
 /* v1.59.5.1 — atualização automática segura, sem depender de F5 */
 (function ccgeVersionWatch(){
- const LOCAL_VERSION='1.60.2';
+ const LOCAL_VERSION='1.60.3';
  let busy=false;
  function hasUnsavedWork(){
    const tm=document.getElementById('taskModal');
@@ -2408,4 +2408,95 @@ supabaseClient.auth.onAuthStateChange((event)=>{
    else window.removeInvoice(i);
  },true);
 })();
-</script></body></html>
+</script>
+<style>
+/* v1.60.3 — expansão determinística do Gerenciar tarefa */
+#taskModal{padding:16px!important}
+#taskModal .dialog.ccge-expanded{
+ position:fixed!important;left:4px!important;top:4px!important;right:4px!important;bottom:4px!important;
+ inset:4px!important;width:auto!important;height:auto!important;max-width:none!important;max-height:none!important;
+ min-width:0!important;min-height:0!important;border-radius:12px!important;overflow:auto!important;
+}
+#taskModal .dialog.ccge-expanded .dialog-body{max-height:none!important}
+</style>
+<script>
+/* v1.60.3 — correções funcionais testáveis e independentes de handlers antigos */
+(function ccgeFix1603(){
+ function taskDialog(){return document.querySelector('#taskModal .dialog')}
+ function resetDialogGeometry(d){
+   if(!d)return;
+   ['left','top','right','bottom','width','height','max-width','max-height','min-width','min-height','position','inset'].forEach(p=>d.style.removeProperty(p));
+   const body=d.querySelector('.dialog-body'); if(body)body.style.removeProperty('max-height');
+ }
+ function installExpand(){
+   const d=taskDialog(),b=d?.querySelector('.ccge-expand-btn'); if(!d||!b||b.dataset.fix1603)return;
+   b.dataset.fix1603='1';
+   b.onclick=function(e){
+     e.preventDefault();e.stopImmediatePropagation();
+     const turningOn=!d.classList.contains('ccge-expanded');
+     resetDialogGeometry(d);
+     d.classList.toggle('ccge-expanded',turningOn);
+     b.textContent=turningOn?'↙':'↗';
+     b.title=turningOn?'Restaurar janela':'Expandir janela';
+     b.setAttribute('aria-label',b.title);
+     d.scrollTop=0;
+   };
+ }
+ function readTemp(){
+   const m=document.getElementById('taskModal'); if(!m)return null;
+   try{return JSON.parse(m.dataset.temp||'null')}catch(e){console.error(e);return null}
+ }
+ function writeTemp(t){
+   const m=document.getElementById('taskModal'); if(!m)return;
+   m.dataset.temp=JSON.stringify(t); if(typeof renderInvoices==='function')renderInvoices(t);
+ }
+ function deleteInvoice(i){
+   const t=readTemp(); if(!t||!Array.isArray(t.invoices)||!t.invoices[i]){toast('Não foi possível localizar esta medição.');return}
+   const inv=t.invoices[i]; if(inv.attachment&&typeof queueTaskAttachmentDelete==='function')queueTaskAttachmentDelete(inv.attachment);
+   t.invoices.splice(i,1); writeTemp(t); toast('Medição removida. Salve as alterações para confirmar.');
+ }
+ function deleteAttachment(i){
+   const t=readTemp(); const inv=t?.invoices?.[i];
+   if(!inv||!inv.attachment){toast('Não foi possível localizar este comprovante.');return}
+   if(typeof queueTaskAttachmentDelete==='function')queueTaskAttachmentDelete(inv.attachment);
+   inv.attachment=null; writeTemp(t); toast('Comprovante removido. Salve as alterações para confirmar.');
+ }
+ document.addEventListener('pointerup',function(e){
+   const b=e.target.closest?.('.ccge-delete-invoice,.ccge-delete-invoice-attachment'); if(!b)return;
+   e.preventDefault();e.stopImmediatePropagation();
+   const i=Number(b.dataset.index); if(!Number.isInteger(i)||i<0)return;
+   b.dataset.skipClick1603='1';
+   if(b.classList.contains('ccge-delete-invoice-attachment'))deleteAttachment(i); else deleteInvoice(i);
+   setTimeout(()=>{delete b.dataset.skipClick1603},0);
+ },true);
+ document.addEventListener('click',function(e){
+   const b=e.target.closest?.('.ccge-delete-invoice,.ccge-delete-invoice-attachment'); if(!b)return;
+   e.preventDefault();e.stopImmediatePropagation();
+   if(b.dataset.skipClick1603==='1')return;
+   const i=Number(b.dataset.index); if(!Number.isInteger(i)||i<0)return;
+   if(b.classList.contains('ccge-delete-invoice-attachment'))deleteAttachment(i); else deleteInvoice(i);
+ },true);
+
+ function updateInvoiceHint(){
+   document.querySelectorAll('.invoice-analysis-note').forEach(x=>x.textContent='Ao anexar PDF com texto legível, o CCGE tentará preencher automaticamente os dados identificáveis para sua conferência.');
+ }
+ function safeNameDescription(file){
+   return String(file?.name||'').replace(/\.[^.]+$/,'').replace(/[_]+/g,' ').replace(/\s+/g,' ').trim();
+ }
+ const priorAnalyze=window.ccgeAnalyzeInvoiceFile;
+ window.ccgeAnalyzeInvoiceFile=async function(file,i){
+   if(typeof priorAnalyze==='function')await priorAnalyze(file,i);
+   const t=readTemp(),x=t?.invoices?.[i]; if(!x)return;
+   let changed=false;
+   if(!x.description){const d=safeNameDescription(file);if(d){x.description=d;changed=true}}
+   if(!x.competence&&x.issueDate&&/^\d{4}-\d{2}-\d{2}$/.test(x.issueDate)){x.competence=x.issueDate.slice(0,7);changed=true}
+   if(!x.situation){x.situation='Ativa';changed=true}
+   if(changed)writeTemp(t);
+ };
+ function install(){installExpand();updateInvoiceHint()}
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();
+ new MutationObserver(install).observe(document.documentElement,{childList:true,subtree:true});
+})();
+</script>
+
+</body></html>
