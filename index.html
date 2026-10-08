@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- CCGE v1.62.1: leitura de documento isolada + terminologia Documento + dropzone mais intuitiva. -->
+<!-- CCGE v1.62.2: maximização exclusiva e estável do Gerenciar tarefa. -->
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
@@ -2361,8 +2361,8 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 #taskModal .dialog.ccge-expanded .ccge-task-resize{display:none!important}
 </style>
 <script>
-(function ccgeTaskExpand617(){
- document.addEventListener('click',e=>{const b=e.target.closest?.('#taskModal .ccge-expand-btn');if(!b)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();const d=document.querySelector('#taskModal .dialog');if(!d)return;const on=!d.classList.contains('ccge-expanded');d.classList.toggle('ccge-expanded',on);if(on){d.dataset.prevStyle=d.getAttribute('style')||'';d.style.cssText+=';position:fixed!important;left:8px!important;top:8px!important;right:auto!important;bottom:auto!important;width:calc(100vw - 16px)!important;height:calc(100vh - 16px)!important;max-width:none!important;max-height:none!important;';}else{const prev=d.dataset.prevStyle||'';d.setAttribute('style',prev);delete d.dataset.prevStyle}const body=d.querySelector('.dialog-body');if(body){body.style.setProperty('max-height','none','important');body.style.setProperty('overflow','auto','important')}b.textContent=on?'↙':'↗';b.title=on?'Restaurar janela':'Expandir janela';b.setAttribute('aria-label',b.title)},true);
+(function ccgeTaskExpand622(){
+ document.addEventListener('click',e=>{const b=e.target.closest?.('#taskModal .ccge-expand-btn');if(!b)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();const d=document.querySelector('#taskModal .dialog');if(!d)return;const on=d.dataset.taskExpanded!=='1';if(on){d.dataset.taskExpanded='1';d.dataset.prevStyle=d.getAttribute('style')||'';d.classList.add('ccge-expanded');d.style.setProperty('position','fixed','important');d.style.setProperty('left','8px','important');d.style.setProperty('top','8px','important');d.style.setProperty('right','auto','important');d.style.setProperty('bottom','auto','important');d.style.setProperty('width','calc(100vw - 16px)','important');d.style.setProperty('height','calc(100vh - 16px)','important');d.style.setProperty('max-width','none','important');d.style.setProperty('max-height','none','important');}else{d.dataset.taskExpanded='0';d.classList.remove('ccge-expanded');const prev=d.dataset.prevStyle||'';d.setAttribute('style',prev);delete d.dataset.prevStyle}const body=d.querySelector('.dialog-body');if(body){body.style.setProperty('max-height','none','important');body.style.setProperty('overflow','auto','important')}b.textContent=on?'↙':'↗';b.title=on?'Restaurar janela':'Expandir janela';b.setAttribute('aria-label',b.title)},true);
 })();
 (function setupGlobalModalExpansion(){
  function install(){
@@ -2372,7 +2372,7 @@ supabaseClient.auth.onAuthStateChange((event)=>{
    let actions=head.querySelector('.dialog-head-actions');
    if(!actions){actions=document.createElement('div');actions.className='dialog-head-actions';[...head.children].filter(el=>el.matches('button,[data-close]')).forEach(el=>actions.appendChild(el));head.appendChild(actions)}
    const expand=document.createElement('button');expand.type='button';expand.className='icon-btn ccge-expand-btn';expand.title='Expandir janela';expand.setAttribute('aria-label','Expandir janela');expand.textContent='↗';
-   expand.onclick=e=>{e.preventDefault();e.stopPropagation();const on=dialog.classList.toggle('ccge-expanded');if(on){['left','top','right','bottom','width','height','max-width','max-height','position'].forEach(p=>dialog.style.removeProperty(p));const body=dialog.querySelector('.dialog-body');if(body)body.style.removeProperty('max-height')}expand.textContent=on?'↙':'↗';expand.title=on?'Restaurar janela':'Expandir janela';expand.setAttribute('aria-label',expand.title)};
+   if(!dialog.closest('#taskModal'))expand.onclick=e=>{e.preventDefault();e.stopPropagation();const on=dialog.classList.toggle('ccge-expanded');if(on){['left','top','right','bottom','width','height','max-width','max-height','position'].forEach(p=>dialog.style.removeProperty(p));const body=dialog.querySelector('.dialog-body');if(body)body.style.removeProperty('max-height')}expand.textContent=on?'↙':'↗';expand.title=on?'Restaurar janela':'Expandir janela';expand.setAttribute('aria-label',expand.title)};
    actions.insertBefore(expand,actions.firstChild);
   });
  }
@@ -2385,7 +2385,7 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 <script>
 /* v1.59.5.1 — atualização automática segura, sem depender de F5 */
 (function ccgeVersionWatch(){
- const LOCAL_VERSION='1.62.1';
+ const LOCAL_VERSION='1.62.2';
  let busy=false;
  function hasUnsavedWork(){
    const tm=document.getElementById('taskModal');
