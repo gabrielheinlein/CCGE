@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- CCGE v1.60.9: consolidação Medições/Custos Reais em uma única implementação. -->
+<!-- CCGE v1.61.0: auditoria global das exclusões + segurança de anexos. -->
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
@@ -538,14 +538,12 @@ function attachmentDate(f){
  const d=new Date(raw);return Number.isNaN(d.getTime())?'Data não informada':d.toLocaleString('pt-BR');
 }
 function taskPendingDeletes(){try{return JSON.parse($('#taskModal')?.dataset.pendingDeletes||'[]')}catch(e){return []}}
-function queueTaskAttachmentDelete(f){if(!f)return;if(f._pendingUpload){deleteCCGEAttachment(f);return}const q=taskPendingDeletes();q.push(f);if($('#taskModal'))$('#taskModal').dataset.pendingDeletes=JSON.stringify(q)}
+function queueTaskAttachmentDelete(f){if(!f)return;if(f._pendingUpload){deleteCCGEAttachment(f).catch(e=>{console.error('Falha ao remover upload temporário',e);toast('Falha ao remover arquivo temporário do armazenamento.')});return}const q=taskPendingDeletes();const key=f.storagePath||f.name||JSON.stringify(f);if(!q.some(x=>(x?.storagePath||x?.name||JSON.stringify(x))===key))q.push(f);if($('#taskModal'))$('#taskModal').dataset.pendingDeletes=JSON.stringify(q)}
 function markPendingUploads(arr){return (arr||[]).map(f=>f&&f.storagePath?{...f,_pendingUpload:true}:f)}
 function cleanAttachmentMeta(f){if(!f||typeof f!=='object')return f;const x={...f};delete x._pendingUpload;return x}
 function cleanTaskAttachmentMeta(t){t.mapFiles=(t.mapFiles||[]).map(cleanAttachmentMeta);t.documents=(t.documents||[]).map(cleanAttachmentMeta);t.videos=(t.videos||[]).map(cleanAttachmentMeta);t.photos=(t.photos||[]).map(cleanAttachmentMeta);t.additiveRecords=(t.additiveRecords||[]).map(a=>({...a,files:(a.files||[]).map(cleanAttachmentMeta)}));t.invoices=(t.invoices||[]).map(i=>({...i,attachment:cleanAttachmentMeta(i.attachment)}));return t}
 async function cleanupTaskPendingUploads(){if(!$('#taskModal')?.dataset.temp)return;let t;try{t=JSON.parse($('#taskModal').dataset.temp)}catch(e){return}const all=[...(t.mapFiles||[]),...(t.documents||[]),...(t.videos||[]),...(t.photos||[]),...(t.additiveRecords||[]).flatMap(a=>a.files||[]),...(t.invoices||[]).map(i=>i.attachment).filter(Boolean)];for(const f of all.filter(x=>x?._pendingUpload)){try{await deleteCCGEAttachment(f)}catch(e){console.warn(e)}}}
-async function deleteCCGEAttachment(f){
-  if(f?.storagePath){const {error}=await supabaseClient.storage.from(f.storageBucket||CCGE_STORAGE_BUCKET).remove([f.storagePath]);if(error)console.error('Falha ao remover Storage',error)}
-}
+async function deleteCCGEAttachment(f){if(!f?.storagePath)return true;const {error}=await supabaseClient.storage.from(f.storageBucket||CCGE_STORAGE_BUCKET).remove([f.storagePath]);if(error){console.error('Falha ao remover Storage',error);throw error}return true}
 
 async function salvarEstadoNuvem(state) {
   try {
@@ -1358,7 +1356,7 @@ window.restorePhase=id=>{const f=state.phases.find(x=>x.id===id);if(!f)return;f.
 window.deletePhase=id=>{const linked=state.tasks.filter(t=>context(t).f.id===id);if(linked.length){if(!confirm(`Esta etapa possui ${linked.length} tarefa(s). Ao excluir a etapa, as tarefas serão preservadas como "Sem etapa vinculada". Continuar?`))return;linked.forEach(t=>{t.phaseId='';t.activityId=''});}else if(!confirm('Excluir definitivamente esta etapa? Esta ação não poderá ser desfeita.'))return;state.phases=state.phases.filter(f=>f.id!==id);save('Etapa excluída');renderAll()};
 window.archiveTask=id=>{const t=state.tasks.find(x=>x.id===id);if(!t)return;t.archived=true;state.selected=state.selected.filter(x=>x!==id);save('Tarefa arquivada');renderAll()};
 window.restoreTask=id=>{const t=state.tasks.find(x=>x.id===id);if(!t)return;t.archived=false;save('Tarefa restaurada');renderAll()};
-window.deleteTask=id=>{const t=state.tasks.find(x=>x.id===id);if(!t)return;if(!confirm(`Excluir definitivamente a tarefa "${taskDisplayName(t)}"? Esta ação não poderá ser desfeita.`))return;state.tasks=state.tasks.filter(x=>x.id!==id);state.selected=state.selected.filter(x=>x!==id);save('Tarefa excluída');renderAll()};
+window.deleteTask=id=>{const t=state.tasks.find(x=>x.id===id);if(!t)return;if(!confirm(`Excluir definitivamente a tarefa "${taskDisplayName(t)}"? Esta ação não poderá ser desfeita.`))return;const files=[...(t.mapFiles||[]),...(t.documents||[]),...(t.videos||[]),...(t.photos||[]),...(t.additiveRecords||[]).flatMap(a=>a.files||[]),...(t.invoices||[]).map(i=>i.attachment).filter(Boolean)];state.tasks=state.tasks.filter(x=>x.id!==id);state.selected=state.selected.filter(x=>x!==id);save('Tarefa excluída');renderAll();Promise.allSettled(files.map(deleteCCGEAttachment)).then(r=>{if(r.some(x=>x.status==='rejected'))toast('Tarefa excluída, mas alguns arquivos exigem limpeza no armazenamento.')})};
 window.openNewTaskForPhase=id=>openTask(null,null,'Obra',id);
 
 function openTask(id,activityId,forcedNature,forcedPhaseId){
@@ -1526,7 +1524,7 @@ function readInstallmentRow(r,i){const get=k=>r.querySelector(`[data-p="${k}"]`)
 $('#paymentModal').addEventListener('input',e=>{if(e.target.matches('[data-p="amount"],[data-p="paidAmount"]'))updateInstallmentSummary()});
 $('#savePaymentModal').onclick=()=>{let t=modalTask();t.payments=t.payments||[];const name=$('#payDescription').value.trim();if(!name){toast('Informe a origem da programação financeira.');$('#payDescription').focus();return}const type=document.querySelector('input[name="payType"]:checked').value,rows=type==='schedule'?$$('#installmentRows [data-installment-row]'):$$('#singleInstallmentHost [data-installment-row]');if(!rows.length){toast('Adicione ao menos uma parcela.');return}for(const r of rows){for(const d of r.querySelectorAll('input[type="date"]'))if(!validateCCGEDate(d))return}const key=editingCommitmentKey||uid('commit'),method=$('#payCommitmentMethod').value.trim(),notes=$('#payCommitmentNotes').value.trim();const items=rows.map((r,i)=>{let x=readInstallmentRow(r,i);if(x.paidDate&&x.status==='Previsto')x.status='Pago';return {...x,description:x.installmentLabel,commitmentId:key,commitmentName:name,commitmentMethod:method,commitmentNotes:notes,paymentType:type}});if(editingCommitmentKey)t.payments=t.payments.filter(p=>paymentCommitmentKey(p)!==editingCommitmentKey);t.payments.push(...items);$('#taskModal').dataset.temp=JSON.stringify(t);renderPayments(t);closePaymentEditor();toast('Programação financeira atualizada.')};
 window.removePaymentCommitment=key=>{if(!confirm('Remover esta programação e todas as suas parcelas?'))return;let t=modalTask();t.payments=(t.payments||[]).filter(p=>paymentCommitmentKey(p)!==key);$('#taskModal').dataset.temp=JSON.stringify(t);renderPayments(t)};
-window.removePayment=i=>{if(!confirm('Remover este pagamento?'))return;let t=modalTask();t.payments.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderPayments(t)};
+window.removePayment=i=>{if(!confirm('Remover este pagamento?'))return;let t=modalTask();t.payments=Array.isArray(t.payments)?t.payments:[];if(!t.payments[i])return toast('Pagamento não localizado.');t.payments.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderPayments(t);toast('Pagamento removido. Salve as alterações para confirmar.')} ;
 
 
 window.editAdditiveDate=(i,v)=>{
@@ -1612,7 +1610,7 @@ function renderMilestones(t){
  $('#milestoneList').innerHTML=a.length?a.map((x,i)=>`<div class="mini-row"><input value="${esc(x.name||'')}" placeholder="Marco" onchange="editMilestone(${i},'name',this.value)"><input type="date" min="1900-01-01" max="2100-12-31" value="${esc(x.plannedDate||'')}" onchange="editMilestone(${i},'plannedDate',this.value)"><input type="date" min="1900-01-01" max="2100-12-31" value="${esc(x.actualDate||'')}" onchange="editMilestone(${i},'actualDate',this.value)"><select onchange="editMilestone(${i},'status',this.value)">${['Planejado','Atingido','Atrasado'].map(v=>`<option ${x.status===v?'selected':''}>${v}</option>`).join('')}</select><button type="button" onclick="removeMilestone(${i})">Remover</button></div>`).join(''):'<div class="empty" style="padding:14px">Nenhum marco cadastrado.</div>';
 }
 window.editMilestone=(i,k,v)=>{let t=modalTask();t.milestones=t.milestones||[];t.milestones[i][k]=v;$('#taskModal').dataset.temp=JSON.stringify(t)};
-window.removeMilestone=i=>{let t=modalTask();t.milestones.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderMilestones(t)};
+window.removeMilestone=i=>{let t=modalTask();t.milestones=Array.isArray(t.milestones)?t.milestones:[];if(!t.milestones[i])return toast('Marco não localizado.');t.milestones.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderMilestones(t);toast('Marco removido. Salve as alterações para confirmar.')} ;
 $('#addAdditive').onclick=()=>{let t=modalTask();t.additiveRecords=t.additiveRecords||[];t.additiveRecords.push({id:uid('ad'),name:`Aditivo ${t.additiveRecords.length+1}`,map:'',approvalDate:'',value:0,notes:'',files:[]});t.additives=additiveTotal(t);$('#taskModal').dataset.temp=JSON.stringify(t);renderAdditives(t)};
 $('#addMilestone').onclick=()=>{let t=modalTask();t.milestones=t.milestones||[];t.milestones.push({id:uid('ms'),name:'',plannedDate:'',actualDate:'',status:'Planejado'});$('#taskModal').dataset.temp=JSON.stringify(t);renderMilestones(t)};
 
@@ -1673,7 +1671,7 @@ window.attachInvoiceFile=async i=>{const input=$(`#invoiceFile_${i}`),file=input
 window.openInvoiceAttachment=i=>openCCGEAttachment(modalTask().invoices?.[i]?.attachment);
 function renderDeliverables(t){let a=t.deliverables||[];$('#deliverableList').innerHTML=a.length?a.map((x,i)=>`<div class="mini-row"><input value="${esc(x.name||'')}" placeholder="Entregável" onchange="editDeliverable(${i},'name',this.value)"><input value="${esc(x.revision||'')}" placeholder="Revisão" onchange="editDeliverable(${i},'revision',this.value)"><input type="date" min="1900-01-01" max="2100-12-31" value="${esc(x.dueDate||'')}" onchange="editDeliverable(${i},'dueDate',this.value)"><select onchange="editDeliverable(${i},'status',this.value)">${['Planejado','Em elaboração','Em análise','Aprovado','Reprovado'].map(v=>`<option ${x.status===v?'selected':''}>${v}</option>`).join('')}</select><button type="button" onclick="removeDeliverable(${i})">Remover</button></div>`).join(''):'<div class="empty" style="padding:14px">Nenhum entregável cadastrado.</div>'}
 window.editDeliverable=(i,k,v)=>{let t=modalTask();t.deliverables=t.deliverables||[];t.deliverables[i][k]=v;$('#taskModal').dataset.temp=JSON.stringify(t)};
-window.removeDeliverable=i=>{let t=modalTask();t.deliverables.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderDeliverables(t)};
+window.removeDeliverable=i=>{let t=modalTask();t.deliverables=Array.isArray(t.deliverables)?t.deliverables:[];if(!t.deliverables[i])return toast('Entregável não localizado.');t.deliverables.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderDeliverables(t);toast('Entregável removido. Salve as alterações para confirmar.')} ;
 $('#addDeliverable').onclick=()=>{let t=modalTask();t.deliverables=t.deliverables||[];t.deliverables.push({id:uid('del'),name:'',revision:'R00',dueDate:'',status:'Planejado'});$('#taskModal').dataset.temp=JSON.stringify(t);renderDeliverables(t)};
 function formatBytes(n){if(!n)return '0 B';let u=['B','KB','MB','GB'],i=Math.min(Math.floor(Math.log(n)/Math.log(1024)),u.length-1);return (n/Math.pow(1024,i)).toFixed(i?1:0)+' '+u[i]}
 
@@ -1869,7 +1867,7 @@ async function submitMonthlyAttachment(){
 function renderMonthlyTaskOptions(c){const sel=$('#mcTask');if(!sel)return;const phaseId=$('#mcPhase')?.value||c.phaseId||'';const tasks=state.tasks.filter(t=>!t.archived&&(!phaseId||context(t).f.id===phaseId));sel.innerHTML='<option value="">Geral / sem tarefa específica</option>'+tasks.map(t=>`<option value="${t.id}" ${c.taskId===t.id?'selected':''}>${esc(taskDisplayName(t))}</option>`).join('')}
 function renderMonthlyEntries(c){const host=$('#monthlyEntries');if(!host)return;const a=c.entries||[];host.innerHTML=a.length?a.map((e,i)=>`<div class="mini-row"><input type="month" value="${esc(e.competence||'')}" onchange="editMonthlyEntry(${i},'competence',this.value)"><input class="money-input" inputmode="decimal" value="${e.planned?esc(brl(e.planned)):''}" placeholder="Previsto" onchange="editMonthlyEntry(${i},'planned',this.value)"><input class="money-input" inputmode="decimal" value="${e.incurred?esc(brl(e.incurred)):''}" placeholder="Incorrido" onchange="editMonthlyEntry(${i},'incurred',this.value)"><input value="${esc(e.note||'')}" placeholder="Observação" onchange="editMonthlyEntry(${i},'note',this.value)"><button type="button" onclick="removeMonthlyEntry(${i})">Remover</button></div>`).join(''):'<div class="empty" style="padding:12px">Nenhuma competência registrada.</div>'}
 window.editMonthlyEntry=(i,k,v)=>{let c=monthlyFromModal();c.entries=c.entries||[];c.entries[i][k]=['planned','incurred'].includes(k)?parseMoney(v):v;$('#monthlyModal').dataset.temp=JSON.stringify(c);renderMonthlyEntries(c)};
-window.removeMonthlyEntry=i=>{let c=monthlyFromModal();c.entries.splice(i,1);$('#monthlyModal').dataset.temp=JSON.stringify(c);renderMonthlyEntries(c)};
+window.removeMonthlyEntry=i=>{let c=monthlyFromModal();c.entries=Array.isArray(c.entries)?c.entries:[];if(!c.entries[i])return toast('Competência não localizada.');c.entries.splice(i,1);$('#monthlyModal').dataset.temp=JSON.stringify(c);renderMonthlyEntries(c);toast('Competência removida. Salve o custo mensal para confirmar.')} ;
 function openMonthly(id){
  editingMonthlyId=id||null;
  const c=id?state.monthlyContracts.find(x=>x.id===id):{id:uid('mc'),name:'',company:'',category:'',type:'Recorrente fixo',monthlyValue:0,dueDay:'',start:'',end:'',phaseId:'',taskId:'',status:'Ativo',notes:'',entries:[],attachment:null};
@@ -2326,7 +2324,7 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 <script>
 /* v1.59.5.1 — atualização automática segura, sem depender de F5 */
 (function ccgeVersionWatch(){
- const LOCAL_VERSION='1.60.9';
+ const LOCAL_VERSION='1.61.0';
  let busy=false;
  function hasUnsavedWork(){
    const tm=document.getElementById('taskModal');
