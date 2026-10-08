@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- CCGE v1.61.2: exclusão individual por ID + drag/drop robusto com leitura automática. -->
+<!-- CCGE v1.61.3: drag/drop direto de medições sem dependência de DataTransfer. -->
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
@@ -2138,7 +2138,7 @@ function initMoneySelectUX(root=document){
 document.addEventListener('DOMContentLoaded',()=>initMoneySelectUX());
 const moneyUXObserver=new MutationObserver(()=>initMoneySelectUX());moneyUXObserver.observe(document.documentElement,{childList:true,subtree:true});
 
-function ccgeProtectFileDrop(){if(document.documentElement.dataset.ccgeDropProtected==='1')return;document.documentElement.dataset.ccgeDropProtected='1';['dragover','drop'].forEach(ev=>document.addEventListener(ev,e=>{if(!e.target.closest?.('.drop-zone'))e.preventDefault()},false))}
+function ccgeProtectFileDrop(){if(document.documentElement.dataset.ccgeDropProtected==='1')return;document.documentElement.dataset.ccgeDropProtected='1';['dragenter','dragover','drop'].forEach(ev=>document.addEventListener(ev,e=>{if(e.dataTransfer?.types?.includes?.('Files'))e.preventDefault()},false))}
 ccgeProtectFileDrop();
 function initDropZones(root=document){
  root.querySelectorAll('.drop-zone').forEach(zone=>{
@@ -2150,19 +2150,24 @@ function initDropZones(root=document){
    zone.addEventListener('drop',async e=>{
      const files=[...(e.dataTransfer?.files||[])];
      if(!files.length){toast('Nenhum arquivo válido foi recebido. Se estiver arrastando diretamente de um e-mail, salve o anexo no computador e tente novamente.');return}
+     // Medições usam o File recebido diretamente: não dependem de reconstruir input.files.
+     if(zone.dataset.invoiceIndex!==undefined&&typeof window.attachInvoiceFile==='function'){
+       toast('Arquivo recebido. Iniciando leitura...');
+       await window.attachInvoiceFile(Number(zone.dataset.invoiceIndex),files[0]);
+       return;
+     }
      try{const dt=new DataTransfer();files.forEach(f=>dt.items.add(f));input.files=dt.files}
-     catch(err){console.error(err);toast('O navegador não permitiu preparar o arquivo arrastado. Use "Escolher ficheiros".');return}
+     catch(err){console.error(err);toast('O navegador não permitiu preparar o arquivo arrastado. Use o seletor de arquivos.');return}
      const handler=zone.dataset.uploadHandler;
      if(handler==='map'){await submitMapFiles();return}
      if(handler==='doc'){await submitDocFiles();return}
      if(handler==='monthly'){await submitMonthlyAttachment();return}
      if(handler==='photo'){await submitPhotos();return}
      if(handler==='video'){await submitVideos();return}
-     if(zone.dataset.invoiceIndex!==undefined&&typeof window.attachInvoiceFile==='function'){await window.attachInvoiceFile(Number(zone.dataset.invoiceIndex),files[0]);return}
      if(zone.dataset.additiveIndex!==undefined&&typeof window.attachAdditiveFiles==='function'){await window.attachAdditiveFiles(Number(zone.dataset.additiveIndex));return}
      input.dispatchEvent(new Event('change',{bubbles:true}));
    });
-   zone.addEventListener('click',e=>{if(e.target===zone||e.target.classList.contains('drop-hint'))input.click()});
+   zone.addEventListener('click',e=>{if(e.target===input)return;if(zone.classList.contains('invoice-dropzone')){e.preventDefault();input.click();return}if(e.target===zone||e.target.classList.contains('drop-hint'))input.click()});
  });
 }
 document.addEventListener('DOMContentLoaded',()=>initDropZones());
@@ -2328,7 +2333,7 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 <script>
 /* v1.59.5.1 — atualização automática segura, sem depender de F5 */
 (function ccgeVersionWatch(){
- const LOCAL_VERSION='1.61.2';
+ const LOCAL_VERSION='1.61.3';
  let busy=false;
  function hasUnsavedWork(){
    const tm=document.getElementById('taskModal');
