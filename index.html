@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- CCGE v1.61.3: drag/drop direto de medições sem dependência de DataTransfer. -->
+<!-- CCGE v1.61.4: drag/drop de medições isolado por ID e atualização automática sem cache. -->
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
@@ -1645,7 +1645,7 @@ function renderInvoices(t){
   <div class="field invoice-span-all"><label>Descrição da medição / despesa</label><input value="${esc(x.description||'')}" onchange="editInvoice(${i},'description',this.value)"></div>
  </div>
  <div class="invoice-upload-block"><label>Documento / comprovante</label>
- ${x.attachment?.name?`<div class="invoice-attached"><span><b>${esc(x.attachment.name)}</b><small>Arquivo vinculado à medição</small></span><div class="invoice-file-actions"><button type="button" class="secondary compact-action" onclick="openInvoiceAttachment(${i})">Abrir</button><button type="button" class="danger compact-action ccge-delete-invoice-attachment" data-index="${i}" data-invoice-id="${esc(x.id||'')}" onclick="return ccgeDeleteInvoiceAttachmentDirect(this,event)">Excluir</button></div></div>`:`<label class="invoice-dropzone drop-zone" data-invoice-index="${i}" for="invoiceFile_${i}"><b>Arraste o arquivo aqui ou clique para selecionar</b><small>NF, medição, comprovante ou documento relacionado</small><em class="invoice-analysis-note">Ao anexar um PDF com texto legível, o CCGE tentará preencher automaticamente os dados identificáveis para conferência.</em><input type="file" id="invoiceFile_${i}" onchange="attachInvoiceFile(${i})"></label>`}
+ ${x.attachment?.name?`<div class="invoice-attached"><span><b>${esc(x.attachment.name)}</b><small>Arquivo vinculado à medição</small></span><div class="invoice-file-actions"><button type="button" class="secondary compact-action" onclick="openInvoiceAttachment(${i})">Abrir</button><button type="button" class="danger compact-action ccge-delete-invoice-attachment" data-index="${i}" data-invoice-id="${esc(x.id||'')}" onclick="return ccgeDeleteInvoiceAttachmentDirect(this,event)">Excluir</button></div></div>`:`<label class="invoice-dropzone drop-zone" data-invoice-index="${i}" data-invoice-id="${esc(x.id||'')}" for="invoiceFile_${i}"><b>Arraste o arquivo aqui ou clique para selecionar</b><small>NF, medição, comprovante ou documento relacionado</small><em class="invoice-analysis-note">Ao anexar um PDF com texto legível, o CCGE tentará preencher automaticamente os dados identificáveis para conferência.</em><input type="file" id="invoiceFile_${i}" onchange="attachInvoiceFile(${i})"></label>`}
  </div></section>`).join(''):'<div class="empty" style="padding:14px">Nenhuma medição ou despesa real cadastrada.</div>';
  renderTaskCostSummary(t)
 }
@@ -2138,6 +2138,14 @@ function initMoneySelectUX(root=document){
 document.addEventListener('DOMContentLoaded',()=>initMoneySelectUX());
 const moneyUXObserver=new MutationObserver(()=>initMoneySelectUX());moneyUXObserver.observe(document.documentElement,{childList:true,subtree:true});
 
+function ccgeInstallInvoiceDropCapture(){
+ if(document.documentElement.dataset.invoiceDropCapture==='1')return;
+ document.documentElement.dataset.invoiceDropCapture='1';
+ document.addEventListener('dragover',e=>{const z=e.target.closest?.('.invoice-dropzone');if(!z)return;e.preventDefault();e.stopPropagation();if(e.dataTransfer)e.dataTransfer.dropEffect='copy';z.classList.add('dragover')},true);
+ document.addEventListener('dragleave',e=>{const z=e.target.closest?.('.invoice-dropzone');if(z)z.classList.remove('dragover')},true);
+ document.addEventListener('drop',async e=>{const z=e.target.closest?.('.invoice-dropzone');if(!z)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();z.classList.remove('dragover');const file=e.dataTransfer?.files?.[0];if(!file)return toast('Nenhum arquivo válido foi recebido.');const id=String(z.dataset.invoiceId||'');const t=modalTask();const i=(t.invoices||[]).findIndex(x=>String(x?.id||'')===id);if(i<0)return toast('Medição não localizada. Reabra a tarefa e tente novamente.');toast('Arquivo recebido. Iniciando leitura...');try{await window.attachInvoiceFile(i,file)}catch(err){console.error(err);toast('Falha ao processar o arquivo arrastado.')}},true);
+}
+ccgeInstallInvoiceDropCapture();
 function ccgeProtectFileDrop(){if(document.documentElement.dataset.ccgeDropProtected==='1')return;document.documentElement.dataset.ccgeDropProtected='1';['dragenter','dragover','drop'].forEach(ev=>document.addEventListener(ev,e=>{if(e.dataTransfer?.types?.includes?.('Files'))e.preventDefault()},false))}
 ccgeProtectFileDrop();
 function initDropZones(root=document){
@@ -2148,6 +2156,7 @@ function initDropZones(root=document){
    ['dragenter','dragover'].forEach(ev=>zone.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();zone.classList.add('dragover')}));
    ['dragleave','drop'].forEach(ev=>zone.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();zone.classList.remove('dragover')}));
    zone.addEventListener('drop',async e=>{
+     if(zone.classList.contains('invoice-dropzone'))return;
      const files=[...(e.dataTransfer?.files||[])];
      if(!files.length){toast('Nenhum arquivo válido foi recebido. Se estiver arrastando diretamente de um e-mail, salve o anexo no computador e tente novamente.');return}
      // Medições usam o File recebido diretamente: não dependem de reconstruir input.files.
@@ -2333,7 +2342,7 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 <script>
 /* v1.59.5.1 — atualização automática segura, sem depender de F5 */
 (function ccgeVersionWatch(){
- const LOCAL_VERSION='1.61.3';
+ const LOCAL_VERSION='1.61.4';
  let busy=false;
  function hasUnsavedWork(){
    const tm=document.getElementById('taskModal');
@@ -2343,9 +2352,8 @@ supabaseClient.auth.onAuthStateChange((event)=>{
    if(busy || document.visibilityState!=='visible')return;
    busy=true;
    try{
-     const base=location.pathname || '/';
-     const sep=base.includes('?')?'&':'?';
-     const r=await fetch(base+sep+'ccge_version_check='+Date.now(),{cache:'no-store'});
+     const base='/';
+     const r=await fetch(base+'?ccge_version_check='+Date.now(),{cache:'no-store',headers:{'Cache-Control':'no-cache'}});
      if(!r.ok)return;
      const html=await r.text();
      const m=html.match(/CCGE v(\d+\.\d+\.\d+(?:\.\d+)?):/);
@@ -2354,7 +2362,7 @@ supabaseClient.auth.onAuthStateChange((event)=>{
        toast(`Nova versão ${m[1]} disponível. Salve ou cancele a edição para atualizar.`);
        return;
      }
-     location.replace(base+'?v='+encodeURIComponent(m[1]));
+     location.replace('/?v='+encodeURIComponent(m[1])+'&cb='+Date.now());
    }catch(e){console.warn('Verificação de versão indisponível.',e)}
    finally{busy=false}
  }
