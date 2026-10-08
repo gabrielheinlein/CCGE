@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- CCGE v1.61.4: drag/drop de medições isolado por ID e atualização automática sem cache. -->
+<!-- CCGE v1.61.5: processamento de anexo resiliente + redimensionamento dedicado Gerenciar Tarefa. -->
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
@@ -2321,6 +2321,26 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 })();
 </script>
 <script>
+/* v1.61.5 — redimensionamento dedicado da janela Gerenciar tarefa */
+(function ccgeTaskModalResize(){
+ const EDGE=14, GAP=4, MIN_W=640, MIN_H=360;
+ function install(){
+  const modal=document.getElementById('taskModal'),d=modal?.querySelector('.dialog');
+  if(!d||d.dataset.taskResize615)return;d.dataset.taskResize615='1';
+  function edgeAt(e){if(d.classList.contains('ccge-expanded'))return '';const r=d.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;let h='',v='';if(x>=0&&x<=EDGE)h='w';else if(x>=r.width-EDGE&&x<=r.width)h='e';if(y>=0&&y<=EDGE)v='n';else if(y>=r.height-EDGE&&y<=r.height)v='s';return v+h}
+  const cursor=x=>({n:'ns-resize',s:'ns-resize',e:'ew-resize',w:'ew-resize',ne:'nesw-resize',sw:'nesw-resize',nw:'nwse-resize',se:'nwse-resize'})[x]||'';
+  d.addEventListener('pointermove',e=>{if(!d.dataset.taskResizing)d.style.cursor=cursor(edgeAt(e))});
+  d.addEventListener('pointerleave',()=>{if(!d.dataset.taskResizing)d.style.cursor=''});
+  d.addEventListener('pointerdown',e=>{if(e.button!==0)return;const edge=edgeAt(e);if(!edge)return;e.preventDefault();e.stopPropagation();const r=d.getBoundingClientRect(),sx=e.clientX,sy=e.clientY;d.dataset.taskResizing='1';d.setPointerCapture?.(e.pointerId);d.style.setProperty('position','fixed','important');d.style.setProperty('left',r.left+'px','important');d.style.setProperty('top',r.top+'px','important');d.style.setProperty('right','auto','important');d.style.setProperty('bottom','auto','important');d.style.setProperty('width',r.width+'px','important');d.style.setProperty('height',r.height+'px','important');d.style.setProperty('max-width','none','important');d.style.setProperty('max-height','none','important');
+   const move=ev=>{let dx=ev.clientX-sx,dy=ev.clientY-sy,left=r.left,top=r.top,w=r.width,h=r.height;if(edge.includes('e'))w+=dx;if(edge.includes('s'))h+=dy;if(edge.includes('w')){left+=dx;w-=dx}if(edge.includes('n')){top+=dy;h-=dy}const mw=Math.min(MIN_W,innerWidth-2*GAP),mh=Math.min(MIN_H,innerHeight-2*GAP);if(w<mw){if(edge.includes('w'))left-=mw-w;w=mw}if(h<mh){if(edge.includes('n'))top-=mh-h;h=mh}left=Math.max(GAP,left);top=Math.max(GAP,top);w=Math.min(w,innerWidth-left-GAP);h=Math.min(h,innerHeight-top-GAP);d.style.setProperty('left',left+'px','important');d.style.setProperty('top',top+'px','important');d.style.setProperty('width',w+'px','important');d.style.setProperty('height',h+'px','important');const body=d.querySelector('.dialog-body');if(body){body.style.setProperty('max-height','none','important');body.style.setProperty('overflow','auto','important')}};
+   const up=ev=>{delete d.dataset.taskResizing;d.style.cursor='';d.releasePointerCapture?.(ev.pointerId);d.removeEventListener('pointermove',move,true);d.removeEventListener('pointerup',up,true);d.removeEventListener('pointercancel',up,true)};
+   d.addEventListener('pointermove',move,true);d.addEventListener('pointerup',up,true);d.addEventListener('pointercancel',up,true);
+  },true);
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();new MutationObserver(install).observe(document.body,{childList:true,subtree:true});
+})();
+</script>
+<script>
 (function setupGlobalModalExpansion(){
  function install(){
   document.querySelectorAll('.modal .dialog').forEach(dialog=>{
@@ -2342,7 +2362,7 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 <script>
 /* v1.59.5.1 — atualização automática segura, sem depender de F5 */
 (function ccgeVersionWatch(){
- const LOCAL_VERSION='1.61.4';
+ const LOCAL_VERSION='1.61.5';
  let busy=false;
  function hasUnsavedWork(){
    const tm=document.getElementById('taskModal');
@@ -2403,9 +2423,9 @@ supabaseClient.auth.onAuthStateChange((event)=>{
  m=firstMatch(t,[/(?:COMPET[EÊ]NCIA|PER[IÍ]ODO\s+DE\s+REFER[EÊ]NCIA)\s*[:\-]?\s*(0?[1-9]|1[0-2])[\/-](\d{4})/i]);if(m)o.competence=`${m[2]}-${String(Number(m[1])).padStart(2,'0')}`;
  m=firstMatch(t,[/(?:MEDIÇ[AÃ]O|BOLETIM\s+DE\s+MEDIÇ[AÃ]O)\s*(?:N[º°.]?|[:#-])?\s*([A-Z0-9.\/-]{1,20})/i]);if(m)o.measurement=m[1];
  return o}
- window.ccgeAnalyzeInvoiceFile=async function(file,i){try{toast('Analisando documento...');let sug=filenameSuggestions(file.name),txt='';if(/pdf/i.test(file.type||'')||/\.pdf$/i.test(file.name||'')){try{txt=await pdfText(file)}catch(e){console.warn('Falha na extração textual do PDF',e)}if(txt.length<80){try{toast('PDF sem texto pesquisável. Executando OCR...');txt=await pdfOcr(file)}catch(e){console.warn('OCR indisponível',e)}}}sug={...sug,...contentSuggestions(txt)};let t=modalTask(),x=t.invoices?.[i];if(!x)return;let changed=[];for(const k of ['supplier','number','measurement','competence','issueDate','dueDate','amount']){if((x[k]===undefined||x[k]===null||x[k]===''||x[k]===0)&&sug[k]){x[k]=sug[k];changed.push(k)}}document.getElementById('taskModal').dataset.temp=JSON.stringify(t);renderInvoices(t);if(changed.length)toast(`Documento lido: ${changed.length} campo(s) preenchido(s). Confira antes de salvar.`);else toast(txt?'Documento lido, mas não encontrei campos com segurança.':'Não foi possível extrair texto deste arquivo.')}catch(e){console.error(e);toast('Arquivo anexado; leitura automática não pôde ser concluída.')}}
+ window.ccgeAnalyzeInvoiceFile=async function(file,i){try{toast('Analisando documento...');let sug=filenameSuggestions(file.name),txt='';if(/pdf/i.test(file.type||'')||/\.pdf$/i.test(file.name||'')){try{txt=await pdfText(file)}catch(e){console.warn('Falha na extração textual do PDF',e)}if(txt.length<80){try{toast('PDF sem texto pesquisável. Executando OCR...');txt=await pdfOcr(file)}catch(e){console.warn('OCR indisponível',e)}}}sug={...sug,...contentSuggestions(txt)};let t=modalTask(),x=t.invoices?.[i];if(!x)return;let changed=[];for(const k of ['supplier','number','measurement','competence','issueDate','dueDate','amount']){if((x[k]===undefined||x[k]===null||x[k]===''||x[k]===0)&&sug[k]){x[k]=sug[k];changed.push(k)}}document.getElementById('taskModal').dataset.temp=JSON.stringify(t);renderInvoices(t);if(changed.length)toast(`Documento lido: ${changed.length} campo(s) preenchido(s). Confira antes de salvar.`);else toast(txt?'Documento lido, mas não encontrei campos com segurança.':'Não foi possível extrair texto deste arquivo.');return true}catch(e){console.error('Leitura automática:',e);toast('Leitura automática indisponível; o arquivo será anexado normalmente.');return false}}
 
- const originalAttach=window.attachInvoiceFile;window.attachInvoiceFile=async function(i,explicitFile){const input=document.getElementById(`invoiceFile_${i}`),file=explicitFile||input?.files?.[0];if(!file)return;const t=modalTask(),id=t.invoices?.[i]?.id;if(!id)return toast('Medição não localizada.');await window.ccgeAnalyzeInvoiceFile(file,i);const current=modalTask(),j=(current.invoices||[]).findIndex(x=>x.id===id);if(j<0)return toast('A medição foi alterada durante a leitura. Tente novamente.');await originalAttach(j,file)}
+ const originalAttach=window.attachInvoiceFile;window.attachInvoiceFile=async function(i,explicitFile){const input=document.getElementById(`invoiceFile_${i}`),file=explicitFile||input?.files?.[0];if(!file)return;const t=modalTask(),id=t.invoices?.[i]?.id;if(!id)throw new Error('Medição não localizada.');await originalAttach(i,file);const current=modalTask(),j=(current.invoices||[]).findIndex(x=>x.id===id);if(j<0)return;await window.ccgeAnalyzeInvoiceFile(file,j)}
 })();
 </script><style>
 /* v1.60.1 — correção definitiva de colisão das ações do cabeçalho */
