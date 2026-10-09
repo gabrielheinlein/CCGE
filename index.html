@@ -2174,7 +2174,7 @@ function initDropZones(root=document){
      if(zone.dataset.additiveIndex!==undefined&&typeof window.attachAdditiveFiles==='function'){await window.attachAdditiveFiles(Number(zone.dataset.additiveIndex));return}
      input.dispatchEvent(new Event('change',{bubbles:true}));
    });
-   zone.addEventListener('click',e=>{if(e.target===input)return;if(zone.classList.contains('invoice-dropzone'))returnif(e.target===zone||e.target.classList.contains('drop-hint'))input.click()});
+   zone.addEventListener('click',e=>{if(e.target===input)return;if(zone.classList.contains('invoice-dropzone'))return;if(e.target===zone||e.target.classList.contains('drop-hint'))input.click()});
  });
 }
 document.addEventListener('DOMContentLoaded',()=>initDropZones());
