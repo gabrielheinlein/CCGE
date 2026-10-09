@@ -40,3 +40,5 @@ fs.mkdirSync('artifacts',{recursive:true});
   console.log('PASS: authenticated login and header non-overlap at 1440/1280/1100px');
  }catch(e){await page.screenshot({path:'artifacts/failure.png',fullPage:true}).catch(()=>{});throw e}finally{await browser.close()}
 })().catch(e=>{console.error('FAIL:',e.stack||e);process.exitCode=1});
+
+// CI rerun after configuring Vercel automation bypass.
