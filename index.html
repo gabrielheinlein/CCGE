@@ -1413,7 +1413,7 @@ function openTask(id,activityId,forcedNature,forcedPhaseId){
  const generalContent=$('#tab-general');
  if(generalTab)generalTab.classList.add('active');
  if(generalContent)generalContent.classList.add('active');
- $('#taskModal').classList.add('open');
+ window.ccgeResetTaskWindow?.();$('#taskModal').classList.add('open');
  const taskDialog=$('#taskModal .dialog');
  if(taskDialog){taskDialog.scrollTop=0;requestAnimationFrame(()=>{taskDialog.scrollTop=0})}
 
@@ -1803,7 +1803,7 @@ $('#saveTaskModal').onclick=async()=>{const __invoiceError=validateInvoicesForSa
 function closeModal(){
  const modal=$('#taskModal');if(!modal)return;
  // UX/safety: never hold the user inside the task modal while remote cleanup is pending.
- modal.classList.remove('open');modal.dataset.pendingDeletes='[]';
+ window.ccgeResetTaskWindow?.();modal.classList.remove('open');modal.dataset.pendingDeletes='[]';
  Promise.resolve(cleanupTaskPendingUploads()).catch(e=>console.warn('Falha na limpeza temporária da tarefa',e));
 }
 $$('#taskModal [data-close]').forEach(b=>b.onclick=closeModal);
@@ -2144,14 +2144,6 @@ function initMoneySelectUX(root=document){
 document.addEventListener('DOMContentLoaded',()=>initMoneySelectUX());
 const moneyUXObserver=new MutationObserver(()=>initMoneySelectUX());moneyUXObserver.observe(document.documentElement,{childList:true,subtree:true});
 
-function ccgeInstallInvoiceDropCapture(){
- if(document.documentElement.dataset.invoiceDropCapture==='1')return;
- document.documentElement.dataset.invoiceDropCapture='1';
- document.addEventListener('dragover',e=>{const z=e.target.closest?.('.invoice-dropzone');if(!z)return;e.preventDefault();e.stopPropagation();if(e.dataTransfer)e.dataTransfer.dropEffect='copy';z.classList.add('dragover')},true);
- document.addEventListener('dragleave',e=>{const z=e.target.closest?.('.invoice-dropzone');if(z)z.classList.remove('dragover')},true);
- document.addEventListener('drop',async e=>{const z=e.target.closest?.('.invoice-dropzone');if(!z)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();z.classList.remove('dragover');const file=e.dataTransfer?.files?.[0];if(!file)return window.ccgeNotify('Nenhum arquivo válido foi recebido.');const id=String(z.dataset.invoiceId||'');const t=window.ccgeReadTaskDraft();const i=(t.invoices||[]).findIndex(x=>String(x?.id||'')===id);if(i<0)return window.ccgeNotify('Medição não localizada. Reabra a tarefa e tente novamente.');window.ccgeNotify('Arquivo recebido. Lendo documento...');try{if(typeof window.ccgeAnalyzeInvoiceFile==='function')await window.ccgeAnalyzeInvoiceFile(file,i);const after=window.ccgeReadTaskDraft(),j=(after.invoices||[]).findIndex(x=>String(x?.id||'')===id);const base=window.ccgeBaseAttachInvoiceFile;if(typeof base!=='function')throw new Error('Rotina base de anexo indisponível.');await base(j>=0?j:i,file);window.ccgePropagateInvoiceAttachment?.(id)}catch(err){console.error('Drop da medição:',err);window.ccgeNotify('Falha ao anexar: '+(err?.message||'erro desconhecido'))}},true);
-}
-ccgeInstallInvoiceDropCapture();
 function ccgeProtectFileDrop(){if(document.documentElement.dataset.ccgeDropProtected==='1')return;document.documentElement.dataset.ccgeDropProtected='1';['dragenter','dragover','drop'].forEach(ev=>document.addEventListener(ev,e=>{if(e.dataTransfer?.types?.includes?.('Files'))e.preventDefault()},false))}
 ccgeProtectFileDrop();
 function initDropZones(root=document){
@@ -2162,7 +2154,7 @@ function initDropZones(root=document){
    ['dragenter','dragover'].forEach(ev=>zone.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();zone.classList.add('dragover')}));
    ['dragleave','drop'].forEach(ev=>zone.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();zone.classList.remove('dragover')}));
    zone.addEventListener('drop',async e=>{
-     if(zone.classList.contains('invoice-dropzone'))return;
+     // Invoice drop uses canonical attachInvoiceFile pipeline.
      const files=[...(e.dataTransfer?.files||[])];
      if(!files.length){toast('Nenhum arquivo válido foi recebido. Se estiver arrastando diretamente de um e-mail, salve o anexo no computador e tente novamente.');return}
      // Medições usam o File recebido diretamente: não dependem de reconstruir input.files.
@@ -2182,7 +2174,7 @@ function initDropZones(root=document){
      if(zone.dataset.additiveIndex!==undefined&&typeof window.attachAdditiveFiles==='function'){await window.attachAdditiveFiles(Number(zone.dataset.additiveIndex));return}
      input.dispatchEvent(new Event('change',{bubbles:true}));
    });
-   zone.addEventListener('click',e=>{if(e.target===input)return;if(zone.classList.contains('invoice-dropzone')){e.preventDefault();input.click();return}if(e.target===zone||e.target.classList.contains('drop-hint'))input.click()});
+   zone.addEventListener('click',e=>{if(e.target===input)return;if(zone.classList.contains('invoice-dropzone'))returnif(e.target===zone||e.target.classList.contains('drop-hint'))input.click()});
  });
 }
 document.addEventListener('DOMContentLoaded',()=>initDropZones());
@@ -2365,6 +2357,7 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 #taskModal .dialog.ccge-expanded .ccge-task-resize{display:none!important}
 </style>
 <script>
+window.ccgeResetTaskWindow=function(){const d=document.querySelector('#taskModal .dialog');if(!d)return;d.classList.remove('ccge-expanded');if(d.dataset.prevStyle!==undefined){d.setAttribute('style',d.dataset.prevStyle);delete d.dataset.prevStyle}else{['position','left','top','right','bottom','width','height','max-width','max-height'].forEach(p=>d.style.removeProperty(p))}const b=document.getElementById('taskExpandBtn');if(b){b.textContent='↗';b.title='Expandir janela';b.setAttribute('aria-label',b.title)}};
 window.ccgeToggleTaskExpand=function(btn,e){e?.preventDefault?.();e?.stopPropagation?.();const d=document.querySelector('#taskModal .dialog');if(!d)return false;const on=!d.classList.contains('ccge-expanded');if(on){d.dataset.prevStyle=d.getAttribute('style')||'';['left','top','right','bottom','width','height','max-width','max-height','position'].forEach(p=>d.style.removeProperty(p));d.classList.add('ccge-expanded')}else{d.classList.remove('ccge-expanded');d.setAttribute('style',d.dataset.prevStyle||'');delete d.dataset.prevStyle}btn.textContent=on?'↙':'↗';btn.title=on?'Restaurar janela':'Expandir janela';btn.setAttribute('aria-label',btn.title);return false};
 (function setupGlobalModalExpansion(){
  function install(){
