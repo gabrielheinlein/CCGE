@@ -2561,4 +2561,24 @@ window.ccgeToggleTaskExpand=function(btn,e){e?.preventDefault?.();e?.stopPropaga
 
 
 
+
+<style id="ccge-final-header-fix-20261009">
+/* Override legado v1.60.2 que era carregado após as regras anteriores. */
+@media(min-width:1060px){
+.app{grid-template-columns:224px minmax(0,1fr)!important}
+.topbar{display:grid!important;grid-template-columns:minmax(150px,245px) minmax(0,1fr) max-content!important;align-items:center!important;gap:12px!important;padding:0 16px!important;box-sizing:border-box!important;width:100%!important;min-width:0!important}
+.topbar>.project-select{min-width:0!important;width:auto!important;max-width:100%!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
+.topbar>.search{width:100%!important;min-width:0!important;max-width:none!important;box-sizing:border-box!important}
+.topbar>.search>input{width:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
+.topbar>.top-actions{display:flex!important;grid-template-columns:none!important;justify-self:end!important;justify-content:flex-end!important;min-width:max-content!important;width:max-content!important;margin:0!important;gap:7px!important;flex-wrap:nowrap!important}
+.topbar>.top-actions>button{flex:none!important;white-space:nowrap!important;font-size:12px!important;padding:9px 10px!important}
+}
+@media(min-width:681px) and (max-width:1059px){
+.topbar{display:grid!important;grid-template-columns:minmax(0,180px) minmax(0,1fr) max-content!important;gap:7px!important;box-sizing:border-box!important;min-width:0!important}
+.topbar>.search{min-width:0!important;max-width:none!important;width:100%!important}
+.topbar>.search>input{box-sizing:border-box!important;max-width:100%!important;width:100%!important}
+.topbar>.top-actions{display:flex!important;grid-template-columns:none!important;margin:0!important;gap:4px!important}
+.topbar>.top-actions>button{padding:7px 8px!important;font-size:12px!important}
+}
+</style>
 </body></html>
