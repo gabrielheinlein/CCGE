@@ -8,17 +8,21 @@ fs.mkdirSync('artifacts',{recursive:true});
  const failures=[];
  const base=process.env.CCGE_TEST_URL||'https://ccge-git-test-ccge-supabase-homologacao-ccge2.vercel.app/';
  try{
-  await page.goto(base,{waitUntil:'domcontentloaded',timeout:45000});
+  const response=await page.goto(base,{waitUntil:'domcontentloaded',timeout:45000});
+  console.log('DIAG: URL',page.url(),'HTTP',response?.status(),'TITLE',await page.title());
+  console.log('DIAG: login visible',await page.locator('#loginEmail').isVisible().catch(()=>false),'gate visible',await page.locator('#authGate').isVisible().catch(()=>false),'header visible',await page.locator('.topbar').isVisible().catch(()=>false));
+  console.log('DIAG: body',JSON.stringify((await page.locator('body').innerText().catch(()=>'' )).slice(0,600)));
+  if(response?.status()>=400)throw new Error('Homologation URL returned HTTP '+response.status());
   await page.screenshot({path:'artifacts/initial.png',fullPage:true});
-  const loginVisible=await page.locator('input[type=password]').first().isVisible().catch(()=>false);
+  const loginVisible=await page.locator('#loginPassword').isVisible().catch(()=>false);
   if(loginVisible){
    assert.ok(process.env.CCGE_TEST_EMAIL&&process.env.CCGE_TEST_PASSWORD,'Login visible; configure CCGE_TEST_EMAIL and CCGE_TEST_PASSWORD secrets for authenticated browser checks');
-   await page.locator('input[type=email], input[autocomplete=email]').first().fill(process.env.CCGE_TEST_EMAIL);
-   await page.locator('input[type=password]').first().fill(process.env.CCGE_TEST_PASSWORD);
+   await page.locator('#loginEmail').fill(process.env.CCGE_TEST_EMAIL);
+   await page.locator('#loginPassword').fill(process.env.CCGE_TEST_PASSWORD);
    await page.locator('#loginSubmit').click();
    await page.locator('#authGate').waitFor({state:'hidden',timeout:30000});
   }
-  assert.ok(await page.locator('.topbar .search').isVisible(),'App header not available');
+  assert.ok(await page.locator('.topbar .search').isVisible(),'App header not available at '+page.url());
   assert.ok(await page.locator('#authGate').isHidden(),'Authentication gate still visible');
   for(const width of [1440,1280,1100]){
    await page.setViewportSize({width,height:900});
