@@ -4,12 +4,13 @@ const fs = require('node:fs');
 fs.mkdirSync('artifacts',{recursive:true});
 (async()=>{
  const browser=await chromium.launch({headless:true});
- const page=await browser.newPage({viewport:{width:1440,height:900},deviceScaleFactor:1});
+ const page=await browser.newPage({viewport:{width:1440,height:900},deviceScaleFactor:1,extraHTTPHeaders:process.env.CCGE_VERCEL_BYPASS_SECRET?{'x-vercel-protection-bypass':process.env.CCGE_VERCEL_BYPASS_SECRET}:{}});
  const failures=[];
  const base=process.env.CCGE_TEST_URL||'https://ccge-git-test-ccge-supabase-homologacao-ccge2.vercel.app/';
  try{
   const response=await page.goto(base,{waitUntil:'domcontentloaded',timeout:45000});
   console.log('DIAG: URL',page.url(),'HTTP',response?.status(),'TITLE',await page.title());
+  if(new URL(page.url()).hostname==='vercel.com')throw new Error('VERCEL_PREVIEW_PROTECTED: GitHub Actions redirected to Vercel login. Configure a Vercel Automation Bypass secret in GitHub as CCGE_VERCEL_BYPASS_SECRET, or use an authorized public homologation URL. Do not disable protection for production.');
   console.log('DIAG: login visible',await page.locator('#loginEmail').isVisible().catch(()=>false),'gate visible',await page.locator('#authGate').isVisible().catch(()=>false),'header visible',await page.locator('.topbar').isVisible().catch(()=>false));
   console.log('DIAG: body',JSON.stringify((await page.locator('body').innerText().catch(()=>'' )).slice(0,600)));
   if(response?.status()>=400)throw new Error('Homologation URL returned HTTP '+response.status());
