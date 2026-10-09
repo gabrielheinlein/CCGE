@@ -1,6 +1,7 @@
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+fs.mkdirSync('artifacts',{recursive:true});
 (async()=>{
  const browser=await chromium.launch({headless:true});
  const page=await browser.newPage({viewport:{width:1440,height:900},deviceScaleFactor:1});
@@ -14,10 +15,11 @@ const fs = require('node:fs');
    assert.ok(process.env.CCGE_TEST_EMAIL&&process.env.CCGE_TEST_PASSWORD,'Login visible; configure CCGE_TEST_EMAIL and CCGE_TEST_PASSWORD secrets for authenticated browser checks');
    await page.locator('input[type=email], input[autocomplete=email]').first().fill(process.env.CCGE_TEST_EMAIL);
    await page.locator('input[type=password]').first().fill(process.env.CCGE_TEST_PASSWORD);
-   await page.getByRole('button',{name:/entrar/i}).first().click();
-   await page.locator('.topbar .search').waitFor({state:'visible',timeout:30000});
+   await page.locator('#loginSubmit').click();
+   await page.locator('#authGate').waitFor({state:'hidden',timeout:30000});
   }
   assert.ok(await page.locator('.topbar .search').isVisible(),'App header not available');
+  assert.ok(await page.locator('#authGate').isHidden(),'Authentication gate still visible');
   for(const width of [1440,1280,1100]){
    await page.setViewportSize({width,height:900});
    const data=await page.evaluate(()=>{
@@ -31,5 +33,5 @@ const fs = require('node:fs');
   }
   assert.deepEqual(failures,[]);
   console.log('PASS: authenticated login and header non-overlap at 1440/1280/1100px');
- }finally{await browser.close()}
+ }catch(e){await page.screenshot({path:'artifacts/failure.png',fullPage:true}).catch(()=>{});throw e}finally{await browser.close()}
 })().catch(e=>{console.error('FAIL:',e.stack||e);process.exitCode=1});
