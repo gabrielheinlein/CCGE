@@ -28,3 +28,5 @@ firstCleanup.then(()=>cleanup()).then(()=>{
  assert.equal(removed.includes('persisted.pdf'),false,'Cancel must never delete persisted attachment');
  console.log('Cleanup: discarded queued upload removed on cancel PASS');
 }).catch(e=>{console.error(e);process.exitCode=1});
+
+assert.ok(html.includes("if(c.attachment._pendingUpload){try{await deleteCCGEAttachment(c.attachment)}"),'Removing an unsaved monthly upload must not queue it as a persisted attachment');
