@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- CCGE v1.62.7.1: homologação isolada; correção de escopo do parser e renderização. Antes: parser CRD tolerante ao layout e expansão direta da tarefa. -->
+<!-- CCGE v1.62.7.2: homologação isolada; correção de escopo do parser e renderização. Antes: parser CRD tolerante ao layout e expansão direta da tarefa. -->
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
@@ -538,12 +538,12 @@ function attachmentDate(f){
  if(!raw)return 'Data não informada';
  const d=new Date(raw);return Number.isNaN(d.getTime())?'Data não informada':d.toLocaleString('pt-BR');
 }
-function taskPendingDeletes(){try{return JSON.parse($('#taskModal')?.dataset.pendingDeletes||'[]')}catch(e){return []}}
-function queueTaskAttachmentDelete(f){if(!f)return;if(f._pendingUpload){deleteCCGEAttachment(f).catch(e=>{console.error('Falha ao remover upload temporário',e);toast('Falha ao remover arquivo temporário do armazenamento.')});return}const q=taskPendingDeletes();const key=f.storagePath||f.name||JSON.stringify(f);if(!q.some(x=>(x?.storagePath||x?.name||JSON.stringify(x))===key))q.push(f);if($('#taskModal'))$('#taskModal').dataset.pendingDeletes=JSON.stringify(q)}
+function taskPendingDeletes(){try{return JSON.parse(document.querySelector('#taskModal')?.dataset.pendingDeletes||'[]')}catch(e){return []}}
+function queueTaskAttachmentDelete(f){if(!f)return;if(f._pendingUpload){deleteCCGEAttachment(f).catch(e=>{console.error('Falha ao remover upload temporário',e);window.ccgeNotify('Falha ao remover arquivo temporário do armazenamento.')});return}const q=taskPendingDeletes();const key=f.storagePath||f.name||JSON.stringify(f);if(!q.some(x=>(x?.storagePath||x?.name||JSON.stringify(x))===key))q.push(f);if(document.querySelector('#taskModal'))document.querySelector('#taskModal').dataset.pendingDeletes=JSON.stringify(q)}
 function markPendingUploads(arr){return (arr||[]).map(f=>f&&f.storagePath?{...f,_pendingUpload:true}:f)}
 function cleanAttachmentMeta(f){if(!f||typeof f!=='object')return f;const x={...f};delete x._pendingUpload;return x}
 function cleanTaskAttachmentMeta(t){t.mapFiles=(t.mapFiles||[]).map(cleanAttachmentMeta);t.documents=(t.documents||[]).map(cleanAttachmentMeta);t.videos=(t.videos||[]).map(cleanAttachmentMeta);t.photos=(t.photos||[]).map(cleanAttachmentMeta);t.additiveRecords=(t.additiveRecords||[]).map(a=>({...a,files:(a.files||[]).map(cleanAttachmentMeta)}));t.invoices=(t.invoices||[]).map(i=>({...i,attachment:cleanAttachmentMeta(i.attachment)}));return t}
-async function cleanupTaskPendingUploads(){if(!$('#taskModal')?.dataset.temp)return;let t;try{t=JSON.parse($('#taskModal').dataset.temp)}catch(e){return}const all=[...(t.mapFiles||[]),...(t.documents||[]),...(t.videos||[]),...(t.photos||[]),...(t.additiveRecords||[]).flatMap(a=>a.files||[]),...(t.invoices||[]).map(i=>i.attachment).filter(Boolean)];for(const f of all.filter(x=>x?._pendingUpload)){try{await deleteCCGEAttachment(f)}catch(e){console.warn(e)}}}
+async function cleanupTaskPendingUploads(){if(!document.querySelector('#taskModal')?.dataset.temp)return;let t;try{t=JSON.parse(document.querySelector('#taskModal').dataset.temp)}catch(e){return}const all=[...(t.mapFiles||[]),...(t.documents||[]),...(t.videos||[]),...(t.photos||[]),...(t.additiveRecords||[]).flatMap(a=>a.files||[]),...(t.invoices||[]).map(i=>i.attachment).filter(Boolean)];for(const f of all.filter(x=>x?._pendingUpload)){try{await deleteCCGEAttachment(f)}catch(e){console.warn(e)}}}
 async function deleteCCGEAttachment(f){if(!f?.storagePath)return true;const {error}=await supabaseClient.storage.from(f.storageBucket||CCGE_STORAGE_BUCKET).remove([f.storagePath]);if(error){console.error('Falha ao remover Storage',error);throw error}return true}
 
 // Serializa todas as gravações deste navegador para impedir que requisições concorrentes
@@ -620,7 +620,7 @@ async function carregarEstadoNuvem() {
 </form></div>
 <div class="app">
 <aside class="sidebar">
- <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small id="ccgeVisibleVersion">CCGE v1.62.7.1 · TESTES</small></div></div>
+ <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small id="ccgeVisibleVersion">CCGE v1.62.7.2 · TESTES</small></div></div>
  <nav class="nav" id="nav">
   <button class="active" data-page="home">⌂ <span class="label">Centro de Comando</span></button>
   <button data-page="structure" data-context="work">◫ <span class="label">Etapas</span></button>
@@ -1662,16 +1662,16 @@ function renderInvoices(t){
  <div class="invoice-card-head"><div><b>Medição / custo real ${String(i+1).padStart(2,'0')}</b><small>${x.amount?brl(Number(x.amount||0)):'Registro em preenchimento'}</small></div><button type="button" class="danger compact-action ccge-delete-invoice" data-index="${i}" data-invoice-id="${esc(x.id||'')}" onclick="return ccgeDeleteInvoiceDirect(this,event)">Excluir</button></div>
  <div class="invoice-grid invoice-grid-top">
   <div class="field"><label>Competência</label><input class="ccge-competence-text" inputmode="numeric" maxlength="7" value="${esc(formatCompetenceBR(x.competence||''))}" placeholder="__/____" onchange="editInvoiceCompetenceBR(${i},this.value)"></div>
-  <div class="field"><label>Nº da medição</label><input value="${esc(x.measurement||'')}" onchange="editInvoice(${i},'measurement',this.value)"></div>
+  <div class="field"><label>Nº da medição</label><input value="${esc(x.measurement||'')}" oninput="editInvoice(${i},'measurement',this.value)"></div>
   <div class="field"><label>Situação</label><select onchange="editInvoice(${i},'situation',this.value)"><option value="" ${!x.situation?'selected':''}>—</option><option value="Ativa" ${x.situation==='Ativa'?'selected':''}>Ativa</option><option value="Cancelada" ${x.situation==='Cancelada'?'selected':''}>Cancelada</option></select></div>
  </div>
  <div class="invoice-grid invoice-grid-main">
-  <div class="field invoice-span-2"><label>Fornecedor</label><input value="${esc(x.supplier||'')}" onchange="editInvoice(${i},'supplier',this.value)"></div>
-  <div class="field"><label>NF / Documento</label><input value="${esc(x.number||'')}" onchange="editInvoice(${i},'number',this.value)"></div>
+  <div class="field invoice-span-2"><label>Fornecedor</label><input value="${esc(x.supplier||'')}" oninput="editInvoice(${i},'supplier',this.value)"></div>
+  <div class="field"><label>NF / Documento</label><input value="${esc(x.number||'')}" oninput="editInvoice(${i},'number',this.value)"></div>
   ${invoiceDateField(i,'issueDate','Data da NF',x.issueDate)}
   ${invoiceDateField(i,'dueDate','Vencimento',x.dueDate)}
-  <div class="field"><label>Valor real</label><input class="money-input" inputmode="decimal" value="${x.amount?esc(brl(x.amount)):''}" onchange="editInvoice(${i},'amount',this.value)"></div>
-  <div class="field invoice-span-all"><label>Descrição da medição / despesa</label><input value="${esc(x.description||'')}" onchange="editInvoice(${i},'description',this.value)"></div>
+  <div class="field"><label>Valor real</label><input class="money-input" inputmode="decimal" value="${x.amount?esc(brl(x.amount)):''}" oninput="editInvoice(${i},'amount',this.value)"></div>
+  <div class="field invoice-span-all"><label>Descrição da medição / despesa</label><input value="${esc(x.description||'')}" oninput="editInvoice(${i},'description',this.value)"></div>
  </div>
  <div class="invoice-upload-block"><label>Documento</label>
  ${x.attachment?.name?`<div class="invoice-attached"><span><b>${esc(x.attachment.name)}</b><small>Arquivo vinculado à medição</small></span><div class="invoice-file-actions"><button type="button" class="secondary compact-action" onclick="openInvoiceAttachment(${i})">Abrir</button><button type="button" class="danger compact-action ccge-delete-invoice-attachment" data-index="${i}" data-invoice-id="${esc(x.id||'')}" onclick="return ccgeDeleteInvoiceAttachmentDirect(this,event)">Excluir</button></div></div>`:`<label class="invoice-dropzone drop-zone" data-invoice-index="${i}" data-invoice-id="${esc(x.id||'')}" for="invoiceFile_${i}"><strong class="invoice-drop-plus" aria-hidden="true">＋</strong><b>Arraste o documento aqui ou clique para selecionar</b><small>NF, medição ou documento relacionado</small><em class="invoice-analysis-note">Ao anexar um PDF com texto legível, o CCGE tentará preencher automaticamente os dados identificáveis para conferência.</em><input type="file" id="invoiceFile_${i}" onchange="attachInvoiceFile(${i})"></label>`}
@@ -2417,7 +2417,7 @@ window.ccgeToggleTaskExpand=function(btn,e){e?.preventDefault?.();e?.stopPropaga
 <script>
 /* v1.59.5.1 — atualização automática segura, sem depender de F5 */
 (function ccgeVersionWatch(){
- const LOCAL_VERSION='1.62.7.1';
+ const LOCAL_VERSION='1.62.7.2';
  let busy=false;
  function hasUnsavedWork(){
    const tm=document.getElementById('taskModal');
