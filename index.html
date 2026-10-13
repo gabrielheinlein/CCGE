@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- CCGE v1.62.7.2: homologação isolada; correção de escopo do parser e renderização. Antes: parser CRD tolerante ao layout e expansão direta da tarefa. -->
+<!-- CCGE v1.62.7.3: homologação isolada; correção de escopo do parser e renderização. Antes: parser CRD tolerante ao layout e expansão direta da tarefa. -->
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
@@ -620,7 +620,7 @@ async function carregarEstadoNuvem() {
 </form></div>
 <div class="app">
 <aside class="sidebar">
- <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small id="ccgeVisibleVersion">CCGE v1.62.7.2 · TESTES</small></div></div>
+ <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small id="ccgeVisibleVersion">CCGE v1.62.7.3 · TESTES</small></div></div>
  <nav class="nav" id="nav">
   <button class="active" data-page="home">⌂ <span class="label">Centro de Comando</span></button>
   <button data-page="structure" data-context="work">◫ <span class="label">Etapas</span></button>
@@ -1172,9 +1172,9 @@ function financialTruth(t){
  const additives=canonicalAdditives(t);
  const estimateUpdated=estimateBase+additives;
  const invoiceSum=(t?.invoices||[]).filter(x=>(x.situation||'Ativa')!=='Cancelada').reduce((s,x)=>s+ccgeMoneyNumber(x.amount),0);
- const actualCost=invoiceSum||ccgeMoneyNumber(t?.invoiced);
+ const actualCost=Array.isArray(t?.invoices)&&(t.invoices.length>0||t._invoiceLedgerActive)?invoiceSum:ccgeMoneyNumber(t?.invoiced);
  const paymentSum=(t?.payments||[]).reduce((s,p)=>s+ccgeMoneyNumber(p.paidAmount),0);
- const paid=paymentSum||ccgeMoneyNumber(t?.paid);
+ const paid=Array.isArray(t?.payments)&&(t.payments.length>0||t._paymentLedgerActive)?paymentSum:ccgeMoneyNumber(t?.paid);
  const payable=Math.max(0,actualCost-paid),estimateBalance=estimateUpdated-actualCost,estimateVariance=actualCost-estimateUpdated,estimateConsumption=estimateUpdated?actualCost/estimateUpdated*100:0;
  return {estimated:legacyBudget,estimateBase,estimateUpdated,actualCost,payable,estimateBalance,estimateVariance,estimateConsumption,approvedEntered,approvedOverride,approvedEffective,additives,paid,
    contracted:estimateBase,contractUpdated:estimateUpdated,invoiced:actualCost,contractBalance:estimateBalance};
@@ -1552,8 +1552,8 @@ $('#generateInstallments').onclick=()=>{const n=Math.max(1,Math.min(60,Number($(
 function readInstallmentRow(r,i){const get=k=>r.querySelector(`[data-p="${k}"]`)?.value||'';return {id:get('id')||uid('pay'),installmentLabel:get('label').trim()||`Parcela ${i+1}`,dueDate:get('dueDate'),amount:parseMoney(get('amount')),paidDate:get('paidDate'),paidAmount:parseMoney(get('paidAmount')),status:get('status')||'Previsto',documentRef:get('documentRef').trim(),notes:get('notes').trim()}}
 $('#paymentModal').addEventListener('input',e=>{if(e.target.matches('[data-p="amount"],[data-p="paidAmount"]'))updateInstallmentSummary()});
 $('#savePaymentModal').onclick=()=>{let t=modalTask();t.payments=t.payments||[];const name=$('#payDescription').value.trim();if(!name){toast('Informe a origem da programação financeira.');$('#payDescription').focus();return}const type=document.querySelector('input[name="payType"]:checked').value,rows=type==='schedule'?$$('#installmentRows [data-installment-row]'):$$('#singleInstallmentHost [data-installment-row]');if(!rows.length){toast('Adicione ao menos uma parcela.');return}for(const r of rows){for(const d of r.querySelectorAll('input[type="date"]'))if(!validateCCGEDate(d))return}const key=editingCommitmentKey||uid('commit'),method=$('#payCommitmentMethod').value.trim(),notes=$('#payCommitmentNotes').value.trim();const items=rows.map((r,i)=>{let x=readInstallmentRow(r,i);if(x.paidDate&&x.status==='Previsto')x.status='Pago';return {...x,description:x.installmentLabel,commitmentId:key,commitmentName:name,commitmentMethod:method,commitmentNotes:notes,paymentType:type}});if(editingCommitmentKey)t.payments=t.payments.filter(p=>paymentCommitmentKey(p)!==editingCommitmentKey);t.payments.push(...items);$('#taskModal').dataset.temp=JSON.stringify(t);renderPayments(t);closePaymentEditor();toast('Programação financeira atualizada.')};
-window.removePaymentCommitment=key=>{if(!confirm('Remover esta programação e todas as suas parcelas?'))return;let t=modalTask();t.payments=(t.payments||[]).filter(p=>paymentCommitmentKey(p)!==key);$('#taskModal').dataset.temp=JSON.stringify(t);renderPayments(t)};
-window.removePayment=i=>{if(!confirm('Remover este pagamento?'))return;let t=modalTask();t.payments=Array.isArray(t.payments)?t.payments:[];if(!t.payments[i])return toast('Pagamento não localizado.');t.payments.splice(i,1);$('#taskModal').dataset.temp=JSON.stringify(t);renderPayments(t);toast('Pagamento removido. Salve as alterações para confirmar.')} ;
+window.removePaymentCommitment=key=>{if(!confirm('Remover esta programação e todas as suas parcelas?'))return;let t=modalTask();t._paymentLedgerActive=true;t.payments=(t.payments||[]).filter(p=>paymentCommitmentKey(p)!==key);$('#taskModal').dataset.temp=JSON.stringify(t);renderPayments(t)};
+window.removePayment=i=>{if(!confirm('Remover este pagamento?'))return;let t=modalTask();t.payments=Array.isArray(t.payments)?t.payments:[];if(!t.payments[i])return toast('Pagamento não localizado.');t.payments.splice(i,1);t._paymentLedgerActive=true;$('#taskModal').dataset.temp=JSON.stringify(t);renderPayments(t);toast('Pagamento removido. Salve as alterações para confirmar.')} ;
 
 
 window.editAdditiveDate=(i,v)=>{
@@ -1678,10 +1678,10 @@ function renderInvoices(t){
  </div></section>`).join(''):'<div class="empty" style="padding:14px">Nenhuma medição ou despesa real cadastrada.</div>';
  renderTaskCostSummary(t)
 }
-window.editInvoice=(i,k,v)=>{let t=modalTask();t.invoices=t.invoices||[];if(!t.invoices[i])return;t.invoices[i][k]=k==='amount'?parseMoney(v):v;$('#taskModal').dataset.temp=JSON.stringify(t);renderTaskCostSummary(t)};
+window.editInvoice=(i,k,v)=>{let t=modalTask();t.invoices=t.invoices||[];if(!t.invoices[i])return;t._invoiceLedgerActive=true;t.invoices[i][k]=k==='amount'?parseMoney(v):v;$('#taskModal').dataset.temp=JSON.stringify(t);renderTaskCostSummary(t)};
 function ccgeSameAttachment(a,b){if(!a||!b)return false;const ka=a.storagePath||a.url||a.name,kb=b.storagePath||b.url||b.name;return !!ka&&ka===kb}
 function ccgeQueueInvoiceAttachmentDelete(t,index){const f=t?.invoices?.[index]?.attachment;if(!f)return;const shared=(t.invoices||[]).some((x,n)=>n!==index&&ccgeSameAttachment(x?.attachment,f));if(!shared)queueTaskAttachmentDelete(f)}
-window.ccgeDeleteInvoiceDirect=function(btn,event){try{event?.preventDefault?.();event?.stopPropagation?.();const modal=document.getElementById('taskModal');if(!modal?.dataset.temp)return false;const t=JSON.parse(modal.dataset.temp);t.invoices=Array.isArray(t.invoices)?t.invoices:[];const id=String(btn?.dataset?.invoiceId||'');if(!id){toast('Medição sem identificador. Reabra a tarefa antes de excluir.');return false}const i=t.invoices.findIndex(x=>String(x?.id||'')===id);if(i<0){toast('Não foi possível localizar esta medição específica. Nada foi excluído.');return false}const inv=t.invoices[i];if(inv?.attachment)ccgeQueueInvoiceAttachmentDelete(t,i);t.invoices.splice(i,1);modal.dataset.temp=JSON.stringify(t);renderInvoices(t);toast('Somente a medição selecionada foi removida. Salve para confirmar.');return false}catch(e){console.error(e);toast('Falha ao excluir a medição. Nenhum outro registro foi alterado.');return false}};
+window.ccgeDeleteInvoiceDirect=function(btn,event){try{event?.preventDefault?.();event?.stopPropagation?.();const modal=document.getElementById('taskModal');if(!modal?.dataset.temp)return false;const t=JSON.parse(modal.dataset.temp);t.invoices=Array.isArray(t.invoices)?t.invoices:[];const id=String(btn?.dataset?.invoiceId||'');if(!id){toast('Medição sem identificador. Reabra a tarefa antes de excluir.');return false}const i=t.invoices.findIndex(x=>String(x?.id||'')===id);if(i<0){toast('Não foi possível localizar esta medição específica. Nada foi excluído.');return false}const inv=t.invoices[i];if(inv?.attachment)ccgeQueueInvoiceAttachmentDelete(t,i);t.invoices.splice(i,1);t._invoiceLedgerActive=true;modal.dataset.temp=JSON.stringify(t);renderInvoices(t);toast('Somente a medição selecionada foi removida. Salve para confirmar.');return false}catch(e){console.error(e);toast('Falha ao excluir a medição. Nenhum outro registro foi alterado.');return false}};
 window.ccgeDeleteInvoiceAttachmentDirect=function(btn,event){try{event?.preventDefault?.();event?.stopPropagation?.();const modal=document.getElementById('taskModal');if(!modal?.dataset.temp)return false;const t=JSON.parse(modal.dataset.temp);t.invoices=Array.isArray(t.invoices)?t.invoices:[];const id=btn?.dataset?.invoiceId||'';let i=id?t.invoices.findIndex(x=>String(x?.id||'')===String(id)):-1;if(i<0)i=Number(btn?.dataset?.index);if(!Number.isInteger(i)||i<0||i>=t.invoices.length||!t.invoices[i]?.attachment){toast('Não foi possível localizar este documento.');return false}try{ccgeQueueInvoiceAttachmentDelete(t,i)}catch(e){console.warn('Fila de exclusão do documento:',e)}t.invoices[i].attachment=null;modal.dataset.temp=JSON.stringify(t);renderInvoices(t);toast('Documento removido. Clique em Salvar alterações para confirmar.');return false}catch(e){console.error(e);toast('Falha ao excluir o comprovante.');return false}};
 function formatCompetenceBR(v){const m=String(v||'').match(/^(\d{4})-(\d{2})$/);return m?`${m[2]}/${m[1]}`:''}
 window.editInvoiceCompetenceBR=(i,val)=>{const raw=String(val||'').trim();if(!raw){editInvoice(i,'competence','');return}const m=raw.match(/^(\d{1,2})\/(\d{4})$/);if(!m||Number(m[1])<1||Number(m[1])>12){toast('Informe a competência no formato mês/ano.');renderInvoices(modalTask());return}editInvoice(i,'competence',`${m[2]}-${String(Number(m[1])).padStart(2,'0')}`)};
@@ -1699,7 +1699,7 @@ window.editInvoiceDateBR=(i,key,val)=>{
 window.openInvoiceDatePicker=(i,key,btn)=>{const input=btn?.parentElement?.querySelector('.ccge-hidden-date');if(!input)return;try{input.showPicker()}catch(e){input.click()}};
 window.pickInvoiceDate=(i,key,input)=>editInvoice(i,key,input.value||'');
 function validateInvoicesForSave(t){const rows=t?.invoices||[];for(let i=0;i<rows.length;i++){const x=rows[i]||{};if(Number(x.amount||0)<0)return `O valor real da medição ${String(i+1).padStart(2,'0')} não pode ser negativo.`}return ''}
-$('#addInvoice').onclick=()=>{let t=modalTask();t.invoices=t.invoices||[];t.invoices.push({id:uid('inv'),competence:'',measurement:'',issueDate:'',supplier:'',number:'',description:'',amount:0,dueDate:'',situation:'',attachment:null});$('#taskModal').dataset.temp=JSON.stringify(t);renderInvoices(t)};
+$('#addInvoice').onclick=()=>{let t=modalTask();t.invoices=t.invoices||[];t._invoiceLedgerActive=true;t.invoices.push({id:uid('inv'),competence:'',measurement:'',issueDate:'',supplier:'',number:'',description:'',amount:0,dueDate:'',situation:'',attachment:null});$('#taskModal').dataset.temp=JSON.stringify(t);renderInvoices(t)};
 window.attachInvoiceFile=async(i,explicitFile)=>{const input=$(`#invoiceFile_${i}`),file=explicitFile||input?.files?.[0];if(!file)return false;const t0=modalTask(),invoiceId=t0.invoices?.[i]?.id,taskId=t0.id,session=$('#taskModal').dataset.invoiceSession;if(!invoiceId)throw new Error('Medição não localizada para anexar o arquivo.');const uploaded=await uploadCCGEFile(file,`tarefas/${editingId||'nova'}/notas-fiscais`);uploaded._pendingUpload=true;let t=modalTask(),j=(t.invoices||[]).findIndex(x=>x.id===invoiceId);if(j<0||t.id!==taskId||$('#taskModal').dataset.invoiceSession!==session){await deleteCCGEAttachment(uploaded);throw new Error('A tarefa foi fechada ou alterada durante o upload. O arquivo temporário foi removido.')}t.invoices[j].attachment=uploaded;$('#taskModal').dataset.temp=JSON.stringify(t);renderInvoices(t);window.ccgeNotify('Arquivo anexado. Salve a tarefa para confirmar.');return true};
 window.ccgeBaseAttachInvoiceFile=window.attachInvoiceFile;
 window.openInvoiceAttachment=i=>openCCGEAttachment(modalTask().invoices?.[i]?.attachment);
@@ -2417,7 +2417,7 @@ window.ccgeToggleTaskExpand=function(btn,e){e?.preventDefault?.();e?.stopPropaga
 <script>
 /* v1.59.5.1 — atualização automática segura, sem depender de F5 */
 (function ccgeVersionWatch(){
- const LOCAL_VERSION='1.62.7.2';
+ const LOCAL_VERSION='1.62.7.3';
  let busy=false;
  function hasUnsavedWork(){
    const tm=document.getElementById('taskModal');
