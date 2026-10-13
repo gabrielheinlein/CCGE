@@ -45,3 +45,11 @@ const duplicateManuallyAssigned=row('055','103-26','103','Descrição não cadas
 duplicateManuallyAssigned._targetTaskId='earth';
 assert.deepEqual(plan([duplicateManuallyAssigned,duplicateManuallyAssigned],base.tasks).map(x=>x.status),['ready','duplicate'],'Manual mapping cannot bypass duplicate prevention');
 console.log('CRD manual assignment guards PASS');
+
+const trace=row('055','111-26','901','Terraplenagem');
+trace.type='MO';trace.cnpj='03.467.748/0001-97';
+const traced=stage(base,[trace],'CRD 055.pdf',()=>String(++seq));
+assert.equal(traced.ok,true);
+assert.equal(traced.snapshot.tasks[0].invoices[0].supplierTaxId,trace.cnpj,'CRD supplier CNPJ must remain auditable');
+assert.equal(traced.snapshot.tasks[0].invoices[0].documentType,'MO','CRD document category must remain auditable');
+console.log('CRD supplier audit metadata PASS');
