@@ -1096,7 +1096,7 @@ function scheduleReactiveRender(){
  });
 }
 function persistentStateSnapshot(){return {...state,selected:[]}}
-function persistState(){const snapshot=persistentStateSnapshot();safeStore.set(JSON.stringify(snapshot));return salvarEstadoNuvem(snapshot).then(ok=>{if(!ok){console.error('CCGE: alterações locais não confirmadas no Supabase');toast('Atenção: alteração não sincronizada com a nuvem. Verifique a conexão antes de sair.')}return ok})}
+function persistState(){const snapshot=persistentStateSnapshot();return salvarEstadoNuvem(snapshot).then(ok=>{if(ok){safeStore.set(JSON.stringify(snapshot))}else{console.error('CCGE: alterações locais não confirmadas no Supabase');toast('Atenção: alteração não sincronizada com a nuvem. Verifique a conexão antes de sair.')}return ok})}
 function save(msg){
  recomputeDerivedState();
  if(msg){state.history.unshift({date:new Date().toISOString(),text:msg});state.history=state.history.slice(0,40);toast(msg)}
