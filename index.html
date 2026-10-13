@@ -1883,7 +1883,7 @@ window.viewMonthlyAttachment=async()=>{
  try{const url=await signedAttachmentUrl(monthlyFromModal().attachment);if(tab)tab.location.replace(url);else toast('O navegador bloqueou a nova aba. Clique no nome do arquivo.')}
  catch(err){if(tab)tab.close();console.error(err);toast(`Não foi possível abrir o documento: ${err.message||'erro desconhecido'}`)}
 };
-window.removeMonthlyAttachment=async()=>{let c=monthlyFromModal();if(c.attachment?._pendingUpload)await deleteCCGEAttachment(c.attachment);else if(c.attachment)$('#monthlyModal').dataset.pendingDelete=JSON.stringify(c.attachment);c.attachment=null;$('#monthlyModal').dataset.temp=JSON.stringify(c);$('#mcAttachment').value='';renderMonthlyAttachment(c)};
+window.removeMonthlyAttachment=async()=>{let c=monthlyFromModal();if(c.attachment?.storagePath)$('#monthlyModal').dataset.pendingDelete=JSON.stringify(c.attachment);c.attachment=null;$('#monthlyModal').dataset.temp=JSON.stringify(c);$('#mcAttachment').value='';renderMonthlyAttachment(c)};
 async function readMonthlyAttachment(file){return await uploadCCGEFile(file,`contratos-mensais/${editingMonthlyId||'novo'}`)}
 let monthlyUploadInProgress=false;
 async function submitMonthlyAttachment(){
