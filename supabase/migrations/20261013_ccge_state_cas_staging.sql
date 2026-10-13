@@ -9,7 +9,7 @@ alter table public.ccge_state add column if not exists revisao bigint not null d
 create or replace function public.ccge_enforce_revision_increment()
 returns trigger language plpgsql
 set search_path = public, pg_temp
-as $
+as $$
 begin
   if new.revisao is distinct from old.revisao + 1 then
     raise exception 'CCGE: revisão inválida; use gravação transacional'
@@ -17,7 +17,7 @@ begin
   end if;
   return new;
 end;
-$;
+$$;
 drop trigger if exists ccge_revision_guard on public.ccge_state;
 create trigger ccge_revision_guard
 before update on public.ccge_state
