@@ -16,3 +16,5 @@ assert.equal(JSON.stringify({tasks,input}),before,'Planner must never mutate imp
 console.log('CRD planner: duplicate, exact ME match, ambiguity, missing task, invalid value, no mutation PASS');
 
 const withoutSupplier=row('055','097-26','7','Terraplenagem');withoutSupplier.supplier='';assert.equal(plan([withoutSupplier],tasks)[0].status,'invalid','Supplier is required before automatic distribution');
+
+const withoutCNPJ=row('055','098-26','8','Terraplenagem');withoutCNPJ.cnpj='';assert.equal(plan([withoutCNPJ],tasks)[0].status,'invalid','CNPJ is required before automatic distribution');
