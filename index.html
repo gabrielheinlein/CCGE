@@ -2531,7 +2531,7 @@ if(crdRows.length){
 }
 if(crdRows.length===1){
  const t=window.ccgeReadTaskDraft(),j=(t.invoices||[]).findIndex(x=>x.id===id),r=crdRows[0];
- if(!String(r.description||'').trim()||String(r.description).trim().normalize('NFC')!==String(taskDisplayName(t)||'').trim().normalize('NFC')){window.ccgeNotify('Descrição do CRD não corresponde à tarefa aberta. Importação bloqueada para evitar custo incorreto.');return false;}
+ if(!String(r.description||'').trim()||String(r.description).trim().normalize('NFC')!==String(taskBaseName(t)||'').trim().normalize('NFC')){window.ccgeNotify('Descrição do CRD não corresponde à tarefa aberta. Importação bloqueada para evitar custo incorreto.');return false;}
  const normalized=v=>String(v||'').trim().replace(/^0+(?=\d)/,'');
  const duplicate=(t.invoices||[]).some((x,k)=>k!==j&&normalized(x._crdNumber)===normalized(r.crd)&&String(x.measurement||'').trim()===String(r.measurement||'').trim()&&String(x.number||'').trim()===String(r.number||'').trim());
  if(duplicate){window.ccgeNotify('Medição do CRD já importada nesta tarefa. Importação bloqueada.');return false}
@@ -2542,7 +2542,7 @@ if(crdRows.length===1){
 }if(crdRows.length>1){const t=window.ccgeReadTaskDraft(),j=(t.invoices||[]).findIndex(x=>x.id===id);
 // Segurança: o importador atual grava todas as linhas na tarefa aberta. CRDs com
 // descrições de tarefas distintas só poderão ser distribuídos pela futura Central.
-const taskName=String(taskDisplayName(t)||'').trim().normalize('NFC');
+const taskName=String(taskBaseName(t)||'').trim().normalize('NFC');
 const mismatched=crdRows.filter(r=>!String(r.description||'').trim()||String(r.description).trim().normalize('NFC')!==taskName);
 if(mismatched.length){window.ccgeNotify('CRD com descrições diferentes da tarefa aberta ou não identificadas. Importação bloqueada para evitar custos na tarefa errada.');return false;}
 if(j<0)return false;const base=t.invoices[j]||{};
