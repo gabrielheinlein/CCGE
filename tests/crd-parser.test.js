@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const html=fs.readFileSync(require('node:path').join(__dirname,'../index.html'),'utf8');
 const start=html.indexOf('function ccgeDedupeSupplier(v)');
-const end=html.indexOf('function ccgeNewInvoiceId()',start);
+const end=html.indexOf('function ccgeCRDLayoutCells(',start);
 assert(start>=0&&end>start,'Funções CRD não encontradas');
 const source=html.slice(start,end);
 const parseBRDate=(d,m,y)=>{const year=Number(y),month=Number(m),day=Number(d);return year+'-'+String(month).padStart(2,'0')+'-'+String(day).padStart(2,'0')};
