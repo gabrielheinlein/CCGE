@@ -18,3 +18,4 @@ assert.equal(names.get('013-26'),'DANIEL QUADROS BITENCOURT & CIA LTDA');
 assert.equal(names.get('100-26'),'MASTER SOLUCOES EM HIGIENIZACOES E CONTROLE DE PRAGAS URBANAS LTDA');
 assert.equal(names.get('096-26'),'RM LOCAÇÕES DE EQUIPAMENTOS LTDA');
 console.log('CRD layout: cabeçalho, fornecedor multilinha e subtotal PASSARAM');
+
