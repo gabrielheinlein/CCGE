@@ -2474,7 +2474,7 @@ function ccgeCRDLayoutSuppliers(items,pageWidth){
  const suppliers=new Map();
  for(let i=0;i<maps.length;i++){
   const row=maps[i],above=i?((maps[i-1].y+row.y)/2):row.y+5,below=i+1<maps.length?((row.y+maps[i+1].y)/2):row.y-5;
-  const words=usable.filter(x=>x.x>=pageWidth*.23&&x.x<pageWidth*.35&&x.y<=above&&x.y>below)
+  const words=usable.filter(x=>x.x>=pageWidth*.23&&x.x<pageWidth*.35&&x.y<=above&&x.y>below&&Math.abs(x.y-row.y)<=3.5)
     .sort((a,b)=>Math.abs(b.y-a.y)>1.5?b.y-a.y:a.x-b.x);
   const name=words.map(x=>x.text).join(' ').replace(/\s+/g,' ').trim();
   if(name)suppliers.set(row.text,name);
