@@ -2613,6 +2613,7 @@ async function ccgeCRDCentralConfirm(){
  if(ccgeCRDCentralBusy||!ccgeCRDCentralDraft)return;
  const draft=ccgeCRDCentralDraft,staged=ccgeStageCRDDistribution(persistentStateSnapshot(),draft.rows,draft.name,ccgeNewInvoiceId);
  if(!staged.ok){ccgeCRDCentralRender();toast('CRD não salvo: existem linhas pendentes ou duplicadas.');return}
+ if(document.getElementById('taskModal')?.classList.contains('open')){toast('Feche a janela de tarefa antes de distribuir o CRD, para não sobrescrever edições pendentes.');return}
  if(!confirm('Salvar '+staged.count+' medições em '+staged.taskCount+' tarefas?'))return;
  ccgeCRDCentralBusy=true;document.getElementById('confirmCRDCentral').disabled=true;
  try{
