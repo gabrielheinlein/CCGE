@@ -19,3 +19,12 @@ assert.equal(names.get('100-26'),'MASTER SOLUCOES EM HIGIENIZACOES E CONTROLE DE
 assert.equal(names.get('096-26'),'RM LOCAÇÕES DE EQUIPAMENTOS LTDA');
 console.log('CRD layout: cabeçalho, fornecedor multilinha e subtotal PASSARAM');
 
+
+const dStart=html.indexOf('function ccgeCRDLayoutDescriptions('),dEnd=html.indexOf('async function ccgeCRDLayoutFromPDF(',dStart);
+assert(dStart>=0&&dEnd>dStart,'Leitor geométrico de descrições não encontrado');
+const parseDescriptions=new Function(html.slice(dStart,dEnd)+';return ccgeCRDLayoutDescriptions')();
+const desc=parseDescriptions([item('013-26',87,495),item('Terraplenagem',765,495),item('076-26',87,483),item("Higienização caixa d'água",765,483),item('MASTER SOLUCOES',235,483)],842);
+assert.equal(desc.get('013-26'),'Terraplenagem');
+assert.equal(desc.get('076-26'),"Higienização caixa d'água");
+assert.ok(html.includes('if(description)row.description=description'),'PDF geometry must override contaminated linear description');
+console.log('CRD descriptions: column extraction ignores supplier text PASS');
