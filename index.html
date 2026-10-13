@@ -693,7 +693,7 @@ async function carregarEstadoNuvem() {
   </section>
 
   <section class="page" id="page-financial">
-   <div class="hero"><div><h2>Gestão Financeira</h2><p>Operação financeira, previsões e inteligência executiva integradas às informações das obras e projetos.</p></div><div class="hero-actions"><button class="secondary" data-goto="agenda">Agenda Financeira</button><button class="secondary" data-goto="suppliers">Fornecedores</button></div></div>
+   <div class="hero"><div><h2>Gestão Financeira</h2><p>Operação financeira, previsões e inteligência executiva integradas às informações das obras e projetos.</p></div><div class="hero-actions"><button class="secondary" type="button" id="openCRDCentral">Central de Medições — importar CRD</button><button class="secondary" data-goto="agenda">Agenda Financeira</button><button class="secondary" data-goto="suppliers">Fornecedores</button></div></div>
    <div class="finance-tabs"><button class="finance-tab active" data-finance-tab="executive">Visão Executiva</button><button class="finance-tab" data-finance-tab="operation">Operação Financeira</button><button class="finance-tab" data-finance-tab="analysis">Análises Financeiras</button></div>
    <div class="finance-pane active" id="finance-executive">
     <div class="financial-grid" id="financialMetrics" style="margin:16px 0"></div><div class="health-grid" id="financialHealth"></div>
@@ -884,7 +884,6 @@ async function carregarEstadoNuvem() {
  <div class="financial-grid" id="taskCostSummary" style="margin-bottom:16px"></div>
  <div class="card" style="margin-bottom:14px"><div class="section-title"><div><h3>Mapa de Equalização — estimativa aprovada</h3><small>O ME é referência estimada; não é convertido automaticamente em contrato ou aditivo.</small></div></div><div class="form-grid"><div class="field"><label>Referência do ME</label><input id="costMapRef" disabled></div><div class="field"><label>Data de aprovação</label><input id="costMapDate" disabled></div><div class="field"><label>Valor estimado</label><input id="costEstimated" disabled></div></div></div>
  <div class="subsection-head"><div><h4>Medições / Custos Reais</h4><small>Cada medição/NF ativa compõe o custo real executado. Registros cancelados permanecem rastreáveis e saem do cálculo.</small></div><button class="secondary" type="button" id="addInvoice">+ Nova medição</button></div>
- <div class="toolbar"><button class="secondary" type="button" id="openCRDCentral">Central de Medições — importar CRD de várias tarefas</button></div>
  <div id="invoiceList" class="invoice-cost-list"></div>
  <div class="toolbar"><b id="invoiceIncurredTotal">Custo real executado: R$ 0,00</b><span class="spacer"></span><small style="color:var(--muted)">O custo real nasce das medições/NFs; o desembolso permanece separado em Pagamentos.</small></div>
 </div>
