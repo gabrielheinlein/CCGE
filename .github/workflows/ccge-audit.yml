@@ -34,3 +34,9 @@ jobs:
         run: node tests/crd-layout.test.js
       - name: Run invoice upload pipeline regression
         run: node tests/invoice-pipeline.test.js
+      - name: Run financial zero and legacy regression
+        run: node tests/financial-zero.test.js
+      - name: Run attachment cleanup regression
+        run: node tests/attachment-cleanup.test.js
+      - name: Run concurrent upload regression
+        run: node tests/upload-race.test.js
