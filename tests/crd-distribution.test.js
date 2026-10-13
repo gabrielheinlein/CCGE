@@ -34,3 +34,14 @@ const rejectedStage=stage(base,[row('055','099-26','101','Terraplenagem'),row('0
 assert.equal(rejectedStage.ok,false,'A mixed CRD with unmatched lines must not stage partial writes');
 assert.equal(rejectedStage.snapshot,null);
 console.log('CRD atomic staging across tasks PASS');
+
+const manuallyAssigned=row('055','103-26','103','Descrição não cadastrada');
+manuallyAssigned._targetTaskId='earth';
+assert.equal(plan([manuallyAssigned],base.tasks)[0].taskId,'earth','Explicit assignment resolves unmatched description');
+assert.equal(plan([manuallyAssigned],base.tasks)[0].status,'ready');
+manuallyAssigned._targetTaskId='nonexistent';
+assert.equal(plan([manuallyAssigned],base.tasks)[0].status,'invalid-target','Unknown manual task must be rejected');
+const duplicateManuallyAssigned=row('055','103-26','103','Descrição não cadastrada');
+duplicateManuallyAssigned._targetTaskId='earth';
+assert.deepEqual(plan([duplicateManuallyAssigned,duplicateManuallyAssigned],base.tasks).map(x=>x.status),['ready','duplicate'],'Manual mapping cannot bypass duplicate prevention');
+console.log('CRD manual assignment guards PASS');
