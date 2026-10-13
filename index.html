@@ -545,22 +545,23 @@ function cleanTaskAttachmentMeta(t){t.mapFiles=(t.mapFiles||[]).map(cleanAttachm
 async function cleanupTaskPendingUploads(){if(!$('#taskModal')?.dataset.temp)return;let t;try{t=JSON.parse($('#taskModal').dataset.temp)}catch(e){return}const all=[...(t.mapFiles||[]),...(t.documents||[]),...(t.videos||[]),...(t.photos||[]),...(t.additiveRecords||[]).flatMap(a=>a.files||[]),...(t.invoices||[]).map(i=>i.attachment).filter(Boolean)];for(const f of all.filter(x=>x?._pendingUpload)){try{await deleteCCGEAttachment(f)}catch(e){console.warn(e)}}}
 async function deleteCCGEAttachment(f){if(!f?.storagePath)return true;const {error}=await supabaseClient.storage.from(f.storageBucket||CCGE_STORAGE_BUCKET).remove([f.storagePath]);if(error){console.error('Falha ao remover Storage',error);throw error}return true}
 
-async function salvarEstadoNuvem(state) {
-  try {
-    const { error } = await supabaseClient
-      .from("ccge_state")
-      .upsert({
-        id: CCGE_STATE_ID,
-        dados: state,
-        atualizado_em: new Date().toISOString()
+// Serializa todas as gravações deste navegador para impedir que requisições concorrentes
+// confirmem fora de ordem. Não substitui controle de versão entre dispositivos.
+let ccgeCloudWriteQueue=Promise.resolve();
+function salvarEstadoNuvem(snapshot) {
+  const write=async()=>{
+    try {
+      const { error } = await supabaseClient.from("ccge_state").upsert({
+        id:CCGE_STATE_ID,dados:snapshot,atualizado_em:new Date().toISOString()
       });
-    if (error) throw error;
-    console.log("Estado salvo na nuvem.");
-    return true;
-  } catch (error) {
-    console.error("Erro ao salvar no Supabase:", error);
-    return false;
-  }
+      if(error)throw error;
+      console.log("Estado salvo na nuvem.");
+      return true;
+    }catch(error){console.error("Erro ao salvar no Supabase:",error);return false}
+  };
+  const result=ccgeCloudWriteQueue.then(write,write);
+  ccgeCloudWriteQueue=result.then(()=>undefined,()=>undefined);
+  return result;
 }
 
 async function carregarEstadoNuvem() {
