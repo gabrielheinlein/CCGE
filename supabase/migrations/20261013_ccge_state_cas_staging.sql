@@ -3,6 +3,26 @@
 -- Mantém ccge_state(id,dados,atualizado_em) e adiciona contador de versão.
 begin;
 alter table public.ccge_state add column if not exists revisao bigint not null default 0;
+-- Bloqueia clientes legados que fazem UPDATE/UPSERT sem incrementar a revisão.
+-- Não substitui políticas RLS: um cliente com UPDATE irrestrito ainda poderia
+-- incrementar revisao manualmente. Restringir escrita direta antes da produção.
+create or replace function public.ccge_enforce_revision_increment()
+returns trigger language plpgsql
+set search_path = public, pg_temp
+as $
+begin
+  if new.revisao is distinct from old.revisao + 1 then
+    raise exception 'CCGE: revisão inválida; use gravação transacional'
+      using errcode = '23514';
+  end if;
+  return new;
+end;
+$;
+drop trigger if exists ccge_revision_guard on public.ccge_state;
+create trigger ccge_revision_guard
+before update on public.ccge_state
+for each row execute function public.ccge_enforce_revision_increment();
+
 create or replace function public.ccge_save_state_cas(
   p_id uuid,
   p_expected_revision bigint,
