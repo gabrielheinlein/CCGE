@@ -2541,6 +2541,24 @@ function ccgePlanCRDDistribution(rows,tasks){
   return {index:i,status,taskId:status==='ready'?matches[0]:null,description:name,key,row};
  });
 }
+
+function ccgeStageCRDDistribution(snapshot,rows,documentName,makeId){
+ const plan=ccgePlanCRDDistribution(rows,snapshot?.tasks||[]);
+ const rejected=plan.filter(p=>p.status!=='ready');
+ if(!plan.length||rejected.length)return {ok:false,plan,rejected,snapshot:null};
+ const assignments=new Map(),ids=new Set();
+ for(const p of plan){
+  const id=makeId();
+  if(!id||ids.has(id))return {ok:false,plan,rejected:[{status:'invalid-id',index:p.index}],snapshot:null};
+  ids.add(id);
+  const r=p.row;
+  const invoice={id,competence:r.competence||'',measurement:r.measurement||'',issueDate:r.issueDate||'',supplier:r.supplier||'',number:r.number||'',description:r.description||'',amount:Number(r.amount),dueDate:r.dueDate||'',situation:'Ativa',attachment:null,_crdNumber:r.crd||'',_sourceDocumentName:documentName||''};
+  if(!assignments.has(p.taskId))assignments.set(p.taskId,[]);
+  assignments.get(p.taskId).push(invoice);
+ }
+ const next={...snapshot,tasks:(snapshot.tasks||[]).map(t=>assignments.has(t.id)?{...t,invoices:[...(t.invoices||[]),...assignments.get(t.id)],_invoiceLedgerActive:true}:t)};
+ return {ok:true,plan,rejected:[],snapshot:next,count:plan.length,taskCount:assignments.size};
+}
  function ccgeNewInvoiceId(){return 'inv_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9)}
  function contentSuggestions(txt){const o={},t=String(txt||'').replace(/\s+/g,' ');
  let m=firstMatch(t,[/(?:N(?:OTA)?\s*FISCAL|NF(?:-?E)?|N[ÚU]MERO\s*(?:DA\s*)?(?:NF|NOTA))\s*(?:N[º°.]?|[:#-])?\s*(\d{1,15})/i,/\bNF\s*[Nº°#.: -]*([0-9]{2,15})\b/i]);if(m)o.number=m[1];
