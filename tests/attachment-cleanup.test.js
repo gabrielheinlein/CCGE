@@ -11,3 +11,5 @@ cleanup().then(()=>{assert.deepEqual(removed,['temporary.pdf']);console.log('Cle
 // A fila de exclusões não pode ser descartada após falha do Storage.
 assert.ok(html.includes('const failedDeletes=[];for(const f of pendingDeletes)'), 'Fila de falhas de exclusão ausente');
 assert.ok(html.includes("dataset.pendingDeletes=JSON.stringify(failedDeletes)"), 'Falhas de exclusão não preservadas');
+
+assert.ok(html.includes("Documento sem identificador de medição. Reabra a tarefa antes de excluir."),'Exclusão de documento deve exigir identificador estável');
