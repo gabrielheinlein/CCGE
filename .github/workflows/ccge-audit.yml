@@ -38,5 +38,7 @@ jobs:
         run: node tests/financial-zero.test.js
       - name: Run attachment cleanup regression
         run: node tests/attachment-cleanup.test.js
+      - name: Run CAS authorization regression
+        run: node tests/cas-access.test.js
       - name: Run concurrent upload regression
         run: node tests/upload-race.test.js
