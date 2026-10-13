@@ -16,7 +16,7 @@ async function scenario(name,analysis,uploadOk,expected){
  };
  const document={getElementById:id=>id==='taskModal'?modal:{files:[]}};
  const renderInvoices=()=>{};
- new Function('window','document','renderInvoices',wrapper)(window,document,renderInvoices);
+ window.ccgeRenderInvoices=renderInvoices;new Function('window','document',wrapper)(window,document);
  let result,error;
  try{result=await window.attachInvoiceFile(0,{name:'CRD.pdf'})}catch(e){error=e.message}
  assert.equal(result===true,expected==='ok',name+' result');
@@ -30,3 +30,4 @@ async function scenario(name,analysis,uploadOk,expected){
  await scenario('upload failed',{mode:'single',count:1},false,'error');
  console.log('Invoice pipeline: accepted, blocked duplicate and failed upload PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});
+
