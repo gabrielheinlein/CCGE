@@ -549,26 +549,28 @@ async function deleteCCGEAttachment(f){if(!f?.storagePath)return true;const {err
 // confirmem fora de ordem. Não substitui controle de versão entre dispositivos.
 let ccgeCloudWriteQueue=Promise.resolve();
 let ccgeCloudReady=false;
-let ccgeCloudBaseFingerprint=null;
-function ccgeFingerprint(data){return JSON.stringify(data)}
+let ccgeCloudRevision=null;
 function salvarEstadoNuvem(snapshot) {
   const write=async()=>{
     try {
-      if(!ccgeCloudReady){console.error('CCGE: gravação bloqueada sem carregamento confirmado da nuvem');return false}
-      const {data:remote,error:readError}=await supabaseClient.from("ccge_state").select("dados").eq("id",CCGE_STATE_ID).maybeSingle();
-      if(readError)throw readError;
-      if(!remote||ccgeFingerprint(typeof remote.dados==='string'?JSON.parse(remote.dados):remote.dados)!==ccgeCloudBaseFingerprint){
-        console.error('CCGE: conflito detectado; estado remoto mudou desde a última leitura');
-        return false;
+      if(!ccgeCloudReady||!Number.isSafeInteger(ccgeCloudRevision)||ccgeCloudRevision<0){
+        console.error('CCGE: gravação bloqueada sem revisão válida da nuvem');return false;
       }
-      const { error } = await supabaseClient.from("ccge_state").upsert({
-        id:CCGE_STATE_ID,dados:snapshot,atualizado_em:new Date().toISOString()
+      // Não utilizar upsert: todas as gravações devem passar pelo CAS transacional.
+      const {data,error}=await supabaseClient.rpc('ccge_save_state_cas',{
+        p_id:CCGE_STATE_ID,p_expected_revision:ccgeCloudRevision,p_dados:snapshot
       });
       if(error)throw error;
-      ccgeCloudBaseFingerprint=ccgeFingerprint(snapshot);
-      console.log("Estado salvo na nuvem.");
+      const result=Array.isArray(data)?data[0]:data;
+      if(!result||result.ok!==true||!Number.isSafeInteger(Number(result.current_revision))||
+          Number(result.current_revision)!==ccgeCloudRevision+1){
+        console.error('CCGE: conflito de revisão; nenhuma sobrescrita realizada',result);
+        return false;
+      }
+      ccgeCloudRevision=Number(result.current_revision);
+      console.log('Estado salvo na nuvem, revisão',ccgeCloudRevision);
       return true;
-    }catch(error){console.error("Erro ao salvar no Supabase:",error);return false}
+    }catch(error){console.error('Erro ao salvar no Supabase:',error);return false}
   };
   const result=ccgeCloudWriteQueue.then(write,write);
   ccgeCloudWriteQueue=result.then(()=>undefined,()=>undefined);
@@ -579,11 +581,12 @@ async function carregarEstadoNuvem() {
   try {
     const { data, error } = await supabaseClient
       .from("ccge_state")
-      .select("dados")
+      .select("dados,revisao")
       .eq("id", CCGE_STATE_ID)
       .maybeSingle();
     if (error) throw error;
-    if (!data || data.dados == null) return null;
+    if (!data || data.dados == null || !Number.isSafeInteger(Number(data.revisao)) || Number(data.revisao)<0) return null;
+    ccgeCloudRevision=Number(data.revisao);
     return typeof data.dados === "string" ? JSON.parse(data.dados) : data.dados;
   } catch (error) {
     console.error("Erro ao carregar do Supabase:", error);
@@ -2231,12 +2234,11 @@ setLoginLoading(true);try{
 
   if(cloudState && typeof cloudState==='object'){
     ccgeCloudReady=true;
-    ccgeCloudBaseFingerprint=ccgeFingerprint(cloudState);
     state=normalizeState(cloudState);
     safeStore.set(JSON.stringify(state));
   }else if(localState && typeof localState==='object'){
     ccgeCloudReady=false;
-    ccgeCloudBaseFingerprint=null;
+    ccgeCloudRevision=null;
     // Contingência somente de leitura local. Nao faz upload automatico:
     // evita que uma falha temporária do Supabase substitua a base real.
     state=normalizeState(localState);
@@ -2281,7 +2283,7 @@ document.getElementById('logoutBtn').addEventListener('click',async()=>{
   ccgeCloudReady=false;ccgeBootstrapped=false;showAuthGate(true);authMessage('');
 });
 supabaseClient.auth.onAuthStateChange((event)=>{
-  if(event==='SIGNED_OUT'){clearTimeout(inactivityTimer);ccgeCloudReady=false;ccgeCloudBaseFingerprint=null;ccgeBootstrapped=false;showAuthGate(true)}
+  if(event==='SIGNED_OUT'){clearTimeout(inactivityTimer);ccgeCloudReady=false;ccgeCloudRevision=null;ccgeBootstrapped=false;showAuthGate(true)}
 });
 
 (async()=>{
