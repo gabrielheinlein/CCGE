@@ -18,3 +18,7 @@ const queue=new Function('document','window','supabaseClient','CCGE_STORAGE_BUCK
 queue({storagePath:'new-temporary.pdf',_pendingUpload:true});
 assert.equal(removed.includes('new-temporary.pdf'),false,'Temporary attachment must not be physically deleted before save');
 assert.equal(JSON.parse(modal.dataset.pendingDeletes).length,1,'Temporary attachment must be queued for post-save cleanup');
+
+assert.ok(html.includes('uploaded._pendingUpload=true;'),'Monthly replacement upload must remain temporary until save');
+assert.ok(html.includes("else $('#monthlyModal').dataset.pendingDelete=JSON.stringify(previous)"),'Persisted monthly attachment must be deferred until save');
+assert.ok(html.includes("toast('Documento anterior não removido do armazenamento; tente salvar novamente.')"),'Monthly failed deletion must be visible and retryable');
