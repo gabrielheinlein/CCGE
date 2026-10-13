@@ -22,3 +22,9 @@ assert.equal(JSON.parse(modal.dataset.pendingDeletes).length,1,'Temporary attach
 assert.ok(html.includes('uploaded._pendingUpload=true;'),'Monthly replacement upload must remain temporary until save');
 assert.ok(html.includes("else $('#monthlyModal').dataset.pendingDelete=JSON.stringify(previous)"),'Persisted monthly attachment must be deferred until save');
 assert.ok(html.includes("toast('Documento anterior não removido do armazenamento; tente salvar novamente.')"),'Monthly failed deletion must be visible and retryable');
+
+cleanup().then(()=>{
+ assert.equal(removed.filter(x=>x==='new-temporary.pdf').length,1,'Discarded queued temporary upload must be removed on modal close');
+ assert.equal(removed.includes('persisted.pdf'),false,'Cancel must never delete persisted attachment');
+ console.log('Cleanup: discarded queued upload removed on cancel PASS');
+}).catch(e=>{console.error(e);process.exitCode=1});
