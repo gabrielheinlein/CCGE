@@ -1949,7 +1949,7 @@ window.paymentOperationalState=paymentOperationalState;
 function paymentIsPaid(p){return paymentOperationalState(p).fullyPaid}
 function taskFinancial(t){
  const f=financialTruth(t);
- return {planned:f.estimateBase,committed:f.estimateUpdated,invoiced:f.actualCost,paid:f.paid,balance:f.estimateBalance,payable:f.payable};
+ return {planned:f.estimateBase,committed:f.contractUpdated,invoiced:f.actualCost,paid:f.paid,balance:f.estimateBalance,payable:f.payable};
 }
 function supplierFinancial(name){
  const tasks=state.tasks.filter(t=>!t.archived&&String(t.company||'').trim().toLowerCase()===String(name||'').trim().toLowerCase());
