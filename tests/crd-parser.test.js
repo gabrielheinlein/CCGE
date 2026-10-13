@@ -36,3 +36,15 @@ console.log('CRD parser: 2 lançamentos, fornecedores, categorias, valores e des
 
 assert.ok(html.includes("const taskName=String(taskBaseName(t)||'').trim().normalize('NFC')"),'CRD must compare ME task base name without area suffix');
 assert.ok(html.includes("String(r.description).trim().normalize('NFC')!==String(taskBaseName(t)||'').trim().normalize('NFC')"),'Single-row CRD must compare ME task base name');
+
+const multipage='CRD - Controle de Remessa de Documentos - Notas Fiscais '+
+ row(35,'013-26',212,'DANIEL QUADROS LTDA','03.467.748/0001-97','MO','74.100,00','Depósito','Terraplenagem')+
+ ' Sub-total => 74.100,00 CRD Página 1 de 2 CRD - Controle de Remessa de Documentos - Notas Fiscais '+
+ row(35,'076-26',719,'MASTER SOLUCOES LTDA','07.034.540/0001-35','MO','996,57','Depósito',"Higienização caixa d'água")+
+ ' Sub-total => 996,57 CRD Página 2 de 2';
+const parsedMultipage=parse(multipage);
+assert.equal(parsedMultipage.length,2,'Rows from pages after first subtotal must not be lost');
+assert.equal(parsedMultipage[0].description,'Terraplenagem');
+assert.equal(parsedMultipage[1].description,"Higienização caixa d'água");
+assert.equal(parsedMultipage[1].amount,996.57);
+console.log('CRD parser: multiple page subtotal boundaries PASS');
