@@ -1168,16 +1168,17 @@ function financialTruth(t){
  const legacyBudget=ccgeMoneyNumber(t?.estimated);
  const approvedEntered=ccgeMoneyNumber(t?.approved),approvedOverride=false,approvedEffective=0;
  const enteredBase=ccgeMoneyNumber(t?.contracted);
- const estimateBase=enteredBase||legacyBudget;
+ const estimateBase=legacyBudget;
  const additives=canonicalAdditives(t);
- const estimateUpdated=estimateBase+additives;
+ const estimateUpdated=estimateBase;
+ const contractUpdated=enteredBase+additives;
  const invoiceSum=(t?.invoices||[]).filter(x=>(x.situation||'Ativa')!=='Cancelada').reduce((s,x)=>s+ccgeMoneyNumber(x.amount),0);
  const actualCost=Array.isArray(t?.invoices)&&(t.invoices.length>0||t._invoiceLedgerActive)?invoiceSum:ccgeMoneyNumber(t?.invoiced);
  const paymentSum=(t?.payments||[]).reduce((s,p)=>s+ccgeMoneyNumber(p.paidAmount),0);
  const paid=Array.isArray(t?.payments)&&(t.payments.length>0||t._paymentLedgerActive)?paymentSum:ccgeMoneyNumber(t?.paid);
  const payable=Math.max(0,actualCost-paid),estimateBalance=estimateUpdated-actualCost,estimateVariance=actualCost-estimateUpdated,estimateConsumption=estimateUpdated?actualCost/estimateUpdated*100:0;
  return {estimated:legacyBudget,estimateBase,estimateUpdated,actualCost,payable,estimateBalance,estimateVariance,estimateConsumption,approvedEntered,approvedOverride,approvedEffective,additives,paid,
-   contracted:estimateBase,contractUpdated:estimateUpdated,invoiced:actualCost,contractBalance:estimateBalance};
+   contracted:enteredBase,contractUpdated,invoiced:actualCost,contractBalance:contractUpdated-actualCost};
 }
 function approvedWithAdditives(t){return financialTruth(t).approvedEffective}
 function sumApprovedWithAdditives(arr){return (arr||[]).reduce((s,t)=>s+financialTruth(t).approvedEffective,0)}
