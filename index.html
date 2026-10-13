@@ -2514,6 +2514,34 @@ async function ccgeCRDLayoutFromPDF(file){
  }
  return found;
 }
+
+// Planejamento determinístico para a futura Central de Medições: não modifica tarefas.
+// Uma descrição só pode ser vinculada automaticamente quando identifica UMA tarefa do ME.
+function ccgePlanCRDDistribution(rows,tasks){
+ const normalize=v=>String(v??'').trim().normalize('NFC');
+ const normCRD=v=>String(v??'').trim().replace(/^0+(?=\d)/,'');
+ const keyOf=r=>[normCRD(r._crdNumber??r.crd),normalize(r.measurement),normalize(r.number)].join('|');
+ const index=new Map(),existing=new Set(),seen=new Set();
+ for(const t of tasks||[]){
+  if(t?.archived)continue;
+  const name=normalize(taskBaseName(t));if(!name)continue;
+  if(!index.has(name))index.set(name,[]);
+  index.get(name).push(t.id);
+ }
+ for(const t of tasks||[])for(const invoice of t?.invoices||[]){
+  if(invoice?._crdNumber)existing.add(keyOf(invoice));
+ }
+ return (rows||[]).map((row,i)=>{
+  const name=normalize(row.description),matches=index.get(name)||[],key=keyOf(row);
+  let status='ready';
+  if(!name||!normalize(row.number)||!normalize(row.measurement)||!normCRD(row.crd)||!Number.isFinite(Number(row.amount))||Number(row.amount)<=0)status='invalid';
+  else if(existing.has(key)||seen.has(key))status='duplicate';
+  else if(!matches.length)status='unmatched';
+  else if(matches.length!==1)status='ambiguous';
+  seen.add(key);
+  return {index:i,status,taskId:status==='ready'?matches[0]:null,description:name,key,row};
+ });
+}
  function ccgeNewInvoiceId(){return 'inv_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9)}
  function contentSuggestions(txt){const o={},t=String(txt||'').replace(/\s+/g,' ');
  let m=firstMatch(t,[/(?:N(?:OTA)?\s*FISCAL|NF(?:-?E)?|N[ÚU]MERO\s*(?:DA\s*)?(?:NF|NOTA))\s*(?:N[º°.]?|[:#-])?\s*(\d{1,15})/i,/\bNF\s*[Nº°#.: -]*([0-9]{2,15})\b/i]);if(m)o.number=m[1];
