@@ -33,3 +33,6 @@ const htmlGuard=html.includes("const mismatched=crdRows.filter(r=>")&&html.inclu
 assert.ok(htmlGuard,'Proteção contra CRD de tarefas diferentes ausente');
 console.log('CRD parser: 2 lançamentos, fornecedores, categorias, valores e descrições PASSARAM');
 
+
+assert.ok(html.includes("const taskName=String(taskBaseName(t)||'').trim().normalize('NFC')"),'CRD must compare ME task base name without area suffix');
+assert.ok(html.includes("String(r.description).trim().normalize('NFC')!==String(taskBaseName(t)||'').trim().normalize('NFC')"),'Single-row CRD must compare ME task base name');
