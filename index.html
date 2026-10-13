@@ -1894,7 +1894,7 @@ async function submitMonthlyAttachment(){
    let c=monthlyFromModal();
    const uploaded=await readMonthlyAttachment(file);
    uploaded._pendingUpload=true;
-   if(c.attachment?.storagePath)$('#monthlyModal').dataset.pendingDelete=JSON.stringify(c.attachment);
+   if(c.attachment?.storagePath){const previous=c.attachment;if(previous._pendingUpload){try{await deleteCCGEAttachment(previous)}catch(e){console.warn('Upload temporário mensal não removido',e)}}else $('#monthlyModal').dataset.pendingDelete=JSON.stringify(previous)}
    c.attachment=uploaded;
    $('#monthlyModal').dataset.temp=JSON.stringify(c);input.value='';renderMonthlyAttachment(c);
    toast('Documento salvo no Supabase. Salve o contrato para concluir.');
