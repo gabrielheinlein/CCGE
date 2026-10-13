@@ -30,3 +30,13 @@ firstCleanup.then(()=>cleanup()).then(()=>{
 }).catch(e=>{console.error(e);process.exitCode=1});
 
 assert.ok(html.includes("if(c.attachment._pendingUpload){try{await deleteCCGEAttachment(c.attachment)}"),'Removing an unsaved monthly upload must not queue it as a persisted attachment');
+
+const guardStart=html.indexOf('function ccgeAttachmentStillReferenced('),guardEnd=html.indexOf('async function deleteCCGEAttachment(',guardStart);
+assert.ok(guardStart>=0&&guardEnd>guardStart,'Shared attachment guard missing');
+const stillReferenced=new Function('CCGE_STORAGE_BUCKET',html.slice(guardStart,guardEnd)+';return ccgeAttachmentStillReferenced')('ccge-files');
+const oldFile={storagePath:'shared.pdf'};
+assert.equal(stillReferenced(oldFile,{tasks:[{invoices:[{attachment:{storagePath:'shared.pdf'}}]}],monthlyContracts:[]}),true,'Task invoice must protect shared monthly attachment');
+assert.equal(stillReferenced(oldFile,{tasks:[],monthlyContracts:[{attachment:{storagePath:'shared.pdf'}}]}),true,'Another monthly contract must protect shared attachment');
+assert.equal(stillReferenced(oldFile,{tasks:[],monthlyContracts:[{attachment:{storagePath:'other.pdf'}}]}),false,'Unreferenced attachment may be deleted after cloud save');
+assert.ok(html.includes('if(!ccgeAttachmentStillReferenced(oldAttachment,state))await deleteCCGEAttachment(oldAttachment)'),'Monthly save must check live references before deleting');
+console.log('Shared monthly/task attachment deletion guard PASS');
