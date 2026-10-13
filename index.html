@@ -2533,14 +2533,15 @@ function ccgePlanCRDDistribution(rows,tasks){
   if(invoice?._crdNumber)existing.add(keyOf(invoice));
  }
  return (rows||[]).map((row,i)=>{
-  const name=normalize(row.description),matches=index.get(name)||[],key=keyOf(row);
+  const name=normalize(row.description),matches=index.get(name)||[],key=keyOf(row),manual=normalize(row._targetTaskId),manualTask=manual?(tasks||[]).find(t=>t.id===manual&&!t.archived):null;
   let status='ready';
   if(!name||!normalize(row.number)||!normalize(row.measurement)||!normCRD(row.crd)||!normalize(row.supplier)||!/^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/.test(normalize(row.cnpj))||!Number.isFinite(Number(row.amount))||Number(row.amount)<=0)status='invalid';
   else if(existing.has(key)||seen.has(key))status='duplicate';
-  else if(!matches.length)status='unmatched';
-  else if(matches.length!==1)status='ambiguous';
+  else if(manual&&!manualTask)status='invalid-target';
+  else if(!manualTask&&!matches.length)status='unmatched';
+  else if(!manualTask&&matches.length!==1)status='ambiguous';
   seen.add(key);
-  return {index:i,status,taskId:status==='ready'?matches[0]:null,description:name,key,row};
+  return {index:i,status,taskId:status==='ready'?(manualTask?.id||matches[0]):null,description:name,key,row,manual:!!manualTask};
  });
 }
 
