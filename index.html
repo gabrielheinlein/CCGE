@@ -2524,7 +2524,7 @@ function ccgePlanCRDDistribution(rows,tasks){
  const index=new Map(),existing=new Set(),seen=new Set();
  for(const t of tasks||[]){
   if(t?.archived)continue;
-  const name=normalize(taskBaseName(t));if(!name)continue;
+  const name=normalize(taskBaseName(t));if(!name||!t.id)continue;
   if(!index.has(name))index.set(name,[]);
   index.get(name).push(t.id);
  }
