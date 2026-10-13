@@ -1099,9 +1099,10 @@ function persistentStateSnapshot(){return {...state,selected:[]}}
 function persistState(){const snapshot=persistentStateSnapshot();return salvarEstadoNuvem(snapshot).then(ok=>{if(ok){safeStore.set(JSON.stringify(snapshot))}else{console.error('CCGE: alterações locais não confirmadas no Supabase');toast('Atenção: alteração não sincronizada com a nuvem. Verifique a conexão antes de sair.')}return ok})}
 function save(msg){
  recomputeDerivedState();
- if(msg){state.history.unshift({date:new Date().toISOString(),text:msg});state.history=state.history.slice(0,40);toast(msg)}
- persistState();
+ if(msg){state.history.unshift({date:new Date().toISOString(),text:msg});state.history=state.history.slice(0,40)}
+ const pending=persistState().then(ok=>{if(ok&&msg)toast(msg);return ok});
  scheduleReactiveRender();
+ return pending;
 }
 function toast(t){const x=$('#toast');x.textContent=t;x.classList.add('show');setTimeout(()=>x.classList.remove('show'),1800)}
 window.ccgeNotify=function(t){const x=document.getElementById('toast');if(!x)return; x.textContent=String(t??'');x.classList.add('show');setTimeout(()=>x.classList.remove('show'),1800)}
