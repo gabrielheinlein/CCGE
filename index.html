@@ -2510,7 +2510,7 @@ if(crdRows.length&&(/pdf/i.test(file?.type||'')||/\.pdf$/i.test(file?.name||''))
   for(const row of crdRows){const supplier=layout.get(row.measurement);if(supplier)row.supplier=supplier}
  }catch(err){console.warn('Leitura geométrica do fornecedor indisponível',err)}
 }
-if(crdRows.some(r=>!String(r.supplier||'').trim()||!Number.isFinite(r.amount)||r.amount<=0)){window.ccgeNotify('CRD contém fornecedor ou valor não identificado. Importação automática bloqueada; confira o PDF e cadastre manualmente.');return false}if(crdRows.length===1){
+if(crdRows.some(r=>!String(r.supplier||'').trim()||!/^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/.test(String(r.cnpj||''))||!String(r.number||'').trim()||!String(r.measurement||'').trim()||!Number.isFinite(r.amount)||r.amount<=0)){window.ccgeNotify('CRD contém fornecedor ou valor não identificado. Importação automática bloqueada; confira o PDF e cadastre manualmente.');return false}if(crdRows.length===1){
  const t=window.ccgeReadTaskDraft(),j=(t.invoices||[]).findIndex(x=>x.id===id),r=crdRows[0];
  const normalized=v=>String(v||'').trim().replace(/^0+(?=\d)/,'');
  const duplicate=(t.invoices||[]).some((x,k)=>k!==j&&normalized(x._crdNumber)===normalized(r.crd)&&String(x.measurement||'').trim()===String(r.measurement||'').trim()&&String(x.number||'').trim()===String(r.number||'').trim());
