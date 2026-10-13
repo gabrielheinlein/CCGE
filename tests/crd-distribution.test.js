@@ -1,6 +1,6 @@
 const assert=require('node:assert/strict'),fs=require('node:fs');
 const html=fs.readFileSync(__dirname+'/../index.html','utf8');
-const a=html.indexOf('function ccgePlanCRDDistribution('),b=html.indexOf('function ccgeNewInvoiceId()',a);
+const a=html.indexOf('function ccgePlanCRDDistribution('),b=html.indexOf('let ccgeCRDCentralDraft=',a);
 assert.ok(a>=0&&b>a,'Pure CRD distribution planner missing');
 const plan=new Function('taskBaseName',html.slice(a,b)+';return ccgePlanCRDDistribution')(t=>t.name);
 const tasks=[{id:'earth',name:'Terraplenagem',invoices:[{_crdNumber:'35',measurement:'013-26',number:'212'}]},{id:'hygiene',name:"Higienização caixa d'água"},{id:'dup1',name:'EPC'},{id:'dup2',name:'EPC'},{id:'archived',name:'Portaria',archived:true}];
