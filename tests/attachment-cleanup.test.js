@@ -13,3 +13,8 @@ assert.ok(html.includes('const failedDeletes=[];for(const f of pendingDeletes)')
 assert.ok(html.includes("dataset.pendingDeletes=JSON.stringify(failedDeletes)"), 'Falhas de exclusão não preservadas');
 
 assert.ok(html.includes("Documento sem identificador de medição. Reabra a tarefa antes de excluir."),'Exclusão de documento deve exigir identificador estável');
+
+const queue=new Function('document','window','supabaseClient','CCGE_STORAGE_BUCKET',html.slice(start,end)+';return queueTaskAttachmentDelete')(document,{ccgeNotify:()=>{}},supabaseClient,'ccge-files');
+queue({storagePath:'new-temporary.pdf',_pendingUpload:true});
+assert.equal(removed.includes('new-temporary.pdf'),false,'Temporary attachment must not be physically deleted before save');
+assert.equal(JSON.parse(modal.dataset.pendingDeletes).length,1,'Temporary attachment must be queued for post-save cleanup');
