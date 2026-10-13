@@ -2582,10 +2582,20 @@ function ccgeCRDCentralRender(){
  const body=document.createElement('tbody');
  for(const p of plan){
   const row=document.createElement('tr'),r=p.row,task=state.tasks.find(t=>t.id===p.taskId);
-  for(const value of [r.crd,r.measurement,r.number,r.supplier,r.description,String(r.amount),task?taskDisplayName(task):p.status]){
+  for(const value of [r.crd,r.measurement,r.number,r.supplier,r.description,String(r.amount)]){
    const td=document.createElement('td');td.textContent=value==null?'':String(value);td.style.padding='6px';row.appendChild(td);
   }
-  body.appendChild(row);
+  const cell=document.createElement('td');cell.style.padding='6px';
+  const select=document.createElement('select');select.setAttribute('aria-label','Tarefa da medição '+String(r.number||p.index));
+  const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent=p.status==='ready'?'Correspondência automática':'Selecionar tarefa — '+p.status;select.appendChild(placeholder);
+  for(const t of state.tasks.filter(t=>!t.archived&&t.id)){
+   const opt=document.createElement('option');opt.value=t.id;opt.textContent=taskDisplayName(t);select.appendChild(opt);
+  }
+  select.value=r._targetTaskId||'';
+  select.addEventListener('change',()=>{r._targetTaskId=select.value;ccgeCRDCentralRender()});
+  cell.appendChild(select);
+  const note=document.createElement('small');note.textContent=' '+(task?taskDisplayName(task):p.status)+(p.manual?' (confirmada manualmente)':'');cell.appendChild(note);
+  row.appendChild(cell);body.appendChild(row);
  }
  table.appendChild(body);host.replaceChildren(summary,table);
  btn.disabled=!!rejected.length||!plan.length||ccgeCRDCentralBusy;
