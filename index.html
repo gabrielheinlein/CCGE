@@ -2478,39 +2478,30 @@ window.ccgeToggleTaskExpand=function(btn,e){e?.preventDefault?.();e?.stopPropaga
 
 // Reconstroi a coluna Fornecedor Principal pela geometria do PDF.
 // O texto linear perde nomes divididos entre linhas, como MASTER SOLUCOES.
-function ccgeCRDLayoutSuppliers(items,pageWidth){
+function ccgeCRDLayoutCells(items,pageWidth,minX,maxX){
  const usable=(items||[]).map(x=>({text:String(x.str||'').trim(),x:Number(x.transform?.[4]),y:Number(x.transform?.[5])})).filter(x=>x.text&&Number.isFinite(x.x)&&Number.isFinite(x.y));
  const maps=usable.filter(x=>/^\d{3}-\d{2}$/.test(x.text)&&x.x>pageWidth*.09&&x.x<pageWidth*.17).sort((a,b)=>b.y-a.y);
- if(!maps.length)return new Map();
- const suppliers=new Map();
- for(let i=0;i<maps.length;i++){
-  const row=maps[i],above=i?((maps[i-1].y+row.y)/2):row.y+5,below=i+1<maps.length?((row.y+maps[i+1].y)/2):row.y-5;
-  const words=usable.filter(x=>x.x>=pageWidth*.23&&x.x<pageWidth*.35&&x.y<=above&&x.y>below&&Math.abs(x.y-row.y)<=3.5)
-    .sort((a,b)=>Math.abs(b.y-a.y)>1.5?b.y-a.y:a.x-b.x);
-  const name=words.map(x=>x.text).join(' ').replace(/\s+/g,' ').trim();
-  if(name)suppliers.set(row.text,name);
- }
- return suppliers;
+ return maps.map((row,i)=>{
+  const above=i?((maps[i-1].y+row.y)/2):row.y+5,below=i+1<maps.length?((row.y+maps[i+1].y)/2):row.y-5;
+  const words=usable.filter(x=>x.x>=pageWidth*minX&&x.x<pageWidth*maxX&&x.y<=above&&x.y>below&&Math.abs(x.y-row.y)<=3.5)
+   .sort((a,b)=>Math.abs(b.y-a.y)>1.5?b.y-a.y:a.x-b.x);
+  return {measurement:row.text,value:words.map(x=>x.text).join(' ').replace(/\s+/g,' ').trim()};
+ });
+}
+function ccgeCRDLayoutSuppliers(items,pageWidth){
+ return new Map(ccgeCRDLayoutCells(items,pageWidth,.23,.35).filter(x=>x.value).map(x=>[x.measurement,x.value]));
 }
 function ccgeCRDLayoutDescriptions(items,pageWidth){
- const usable=(items||[]).map(x=>({text:String(x.str||'').trim(),x:Number(x.transform?.[4]),y:Number(x.transform?.[5])})).filter(x=>x.text&&Number.isFinite(x.x)&&Number.isFinite(x.y));
- const maps=usable.filter(x=>/^\d{3}-\d{2}$/.test(x.text)&&x.x>pageWidth*.09&&x.x<pageWidth*.17).sort((a,b)=>b.y-a.y);
- const descriptions=new Map();
- for(let i=0;i<maps.length;i++){
-  const row=maps[i],above=i?((maps[i-1].y+row.y)/2):row.y+5,below=i+1<maps.length?((row.y+maps[i+1].y)/2):row.y-5;
-  const words=usable.filter(x=>x.x>=pageWidth*.88&&x.y<=above&&x.y>below&&Math.abs(x.y-row.y)<=3.5)
-   .sort((a,b)=>Math.abs(b.y-a.y)>1.5?b.y-a.y:a.x-b.x);
-  const description=words.map(x=>x.text).join(' ').replace(/\s+/g,' ').trim();
-  if(description)descriptions.set(row.text,description);
- }
- return descriptions;
+ return new Map(ccgeCRDLayoutCells(items,pageWidth,.88,1.2).filter(x=>x.value).map(x=>[x.measurement,x.value]));
 }
 async function ccgeCRDLayoutFromPDF(file){
- const lib=await ensurePdfJs(),pdf=await lib.getDocument({data:await file.arrayBuffer()}).promise,found=new Map();found.descriptions=new Map();
+ const lib=await ensurePdfJs(),pdf=await lib.getDocument({data:await file.arrayBuffer()}).promise,found=new Map();found.descriptions=new Map();found.supplierRows=[];found.descriptionRows=[];
  for(let p=1;p<=Math.min(pdf.numPages,5);p++){
   const page=await pdf.getPage(p),content=await page.getTextContent();
   for(const [k,v] of ccgeCRDLayoutSuppliers(content.items,page.view[2]-page.view[0]))found.set(k,v);
   for(const [k,v] of ccgeCRDLayoutDescriptions(content.items,page.view[2]-page.view[0]))found.descriptions.set(k,v);
+  found.supplierRows.push(...ccgeCRDLayoutCells(content.items,page.view[2]-page.view[0],.23,.35));
+  found.descriptionRows.push(...ccgeCRDLayoutCells(content.items,page.view[2]-page.view[0],.88,1.2));
  }
  return found;
 }
@@ -2560,7 +2551,10 @@ if(/Controle de Remessa de Documentos/i.test(txt)&&!crdRows.length){
 if(crdRows.length&&(/pdf/i.test(file?.type||'')||/\.pdf$/i.test(file?.name||''))){
  try{
   const layout=await ccgeCRDLayoutFromPDF(file);
-  for(const row of crdRows){const supplier=layout.get(row.measurement),description=layout.descriptions?.get(row.measurement);if(supplier)row.supplier=supplier;if(description)row.description=description}
+  const aligned=layout.supplierRows?.length===crdRows.length&&layout.descriptionRows?.length===crdRows.length&&crdRows.every((r,i)=>layout.supplierRows[i].measurement===r.measurement&&layout.descriptionRows[i].measurement===r.measurement);
+  const counts=new Map();for(const r of crdRows)counts.set(r.measurement,(counts.get(r.measurement)||0)+1);
+  for(let i=0;i<crdRows.length;i++){const row=crdRows[i],unique=counts.get(row.measurement)===1,supplier=aligned?layout.supplierRows[i].value:(unique?layout.get(row.measurement):''),description=aligned?layout.descriptionRows[i].value:(unique?layout.descriptions?.get(row.measurement):'');if(supplier)row.supplier=supplier;if(description)row.description=description}
+  if(!aligned&&crdRows.some(r=>counts.get(r.measurement)>1)){window.ccgeNotify('CRD com mapas repetidos sem alinhamento geométrico seguro. Importação bloqueada.');return false}
  }catch(err){console.warn('Leitura geométrica do fornecedor indisponível',err)}
 }
 if(crdRows.some(r=>!String(r.supplier||'').trim()||!/^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/.test(String(r.cnpj||''))||!String(r.number||'').trim()||!String(r.measurement||'').trim()||!Number.isFinite(r.amount)||r.amount<=0)){window.ccgeNotify('CRD contém fornecedor ou valor não identificado. Importação automática bloqueada; confira o PDF e cadastre manualmente.');return false}// Confere duplicidades também nas demais tarefas, não apenas no modal aberto.
