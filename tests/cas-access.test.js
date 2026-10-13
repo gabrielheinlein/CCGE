@@ -1,0 +1,12 @@
+const assert=require('node:assert/strict'),fs=require('node:fs');
+const sql=fs.readFileSync(__dirname+'/../supabase/migrations/20261013_ccge_cas_exclusive_authenticated_write_staging.sql','utf8');
+const html=fs.readFileSync(__dirname+'/../index.html','utf8');
+assert.match(sql,/security definer/i,'CAS RPC must retain update permission after table write grants are revoked');
+assert.match(sql,/auth\.uid\(\) is null/,'RPC must require signed-in user');
+assert.match(sql,/auth\.role\(\) <> 'authenticated'/,'RPC must reject non-authenticated roles');
+assert.match(sql,/revoke all on public\.ccge_state from anon,authenticated/i,'No direct client writes allowed');
+assert.match(sql,/grant select on public\.ccge_state to authenticated/i,'Authenticated users must still load state');
+assert.match(sql,/grant execute on function public\.ccge_save_state_cas\(uuid,bigint,jsonb\) to authenticated/i);
+assert.match(html,/\.rpc\('ccge_save_state_cas'/,'Client must use RPC');
+assert.match(html,/p_expected_revision:ccgeCloudRevision/,'Client must pass expected revision');
+console.log('CAS-only access policy source regression PASS');
