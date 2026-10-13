@@ -19,3 +19,5 @@ assert.equal(state.tasks[0].paid,0,'Empty active payment ledger must remain zero
 assert.equal(state.tasks[1].invoiced,0,'Empty active invoice ledger must remain zero');
 assert.equal(state.tasks[2].invoiced,50,'Legacy invoice total must survive');
 assert.equal(state.tasks[2].paid,20,'Legacy payment total must survive');
+
+assert.ok(html.includes('t._paymentLedgerActive=true;t.payments.push(...items)'), 'Editing payment commitments must activate payment ledger');
