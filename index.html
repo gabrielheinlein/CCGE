@@ -2554,7 +2554,7 @@ function ccgeStageCRDDistribution(snapshot,rows,documentName,makeId){
   if(!id||ids.has(id))return {ok:false,plan,rejected:[{status:'invalid-id',index:p.index}],snapshot:null};
   ids.add(id);
   const r=p.row;
-  const invoice={id,competence:r.competence||'',measurement:r.measurement||'',issueDate:r.issueDate||'',supplier:r.supplier||'',number:r.number||'',description:r.description||'',amount:Number(r.amount),dueDate:r.dueDate||'',situation:'Ativa',attachment:null,_crdNumber:r.crd||'',_sourceDocumentName:documentName||''};
+  const invoice={id,competence:r.competence||'',measurement:r.measurement||'',issueDate:r.issueDate||'',supplier:r.supplier||'',supplierTaxId:r.cnpj||'',documentType:r.type||'',number:r.number||'',description:r.description||'',amount:Number(r.amount),dueDate:r.dueDate||'',situation:'Ativa',attachment:null,_crdNumber:r.crd||'',_sourceDocumentName:documentName||''};
   if(!assignments.has(p.taskId))assignments.set(p.taskId,[]);
   assignments.get(p.taskId).push(invoice);
  }
