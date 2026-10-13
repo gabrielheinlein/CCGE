@@ -2533,7 +2533,7 @@ function ccgePlanCRDDistribution(rows,tasks){
  return (rows||[]).map((row,i)=>{
   const name=normalize(row.description),matches=index.get(name)||[],key=keyOf(row);
   let status='ready';
-  if(!name||!normalize(row.number)||!normalize(row.measurement)||!normCRD(row.crd)||!Number.isFinite(Number(row.amount))||Number(row.amount)<=0)status='invalid';
+  if(!name||!normalize(row.number)||!normalize(row.measurement)||!normCRD(row.crd)||!normalize(row.supplier)||!/^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/.test(normalize(row.cnpj))||!Number.isFinite(Number(row.amount))||Number(row.amount)<=0)status='invalid';
   else if(existing.has(key)||seen.has(key))status='duplicate';
   else if(!matches.length)status='unmatched';
   else if(matches.length!==1)status='ambiguous';
