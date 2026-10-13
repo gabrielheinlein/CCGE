@@ -2561,6 +2561,77 @@ function ccgeStageCRDDistribution(snapshot,rows,documentName,makeId){
  const next={...snapshot,tasks:(snapshot.tasks||[]).map(t=>assignments.has(t.id)?{...t,invoices:[...(t.invoices||[]),...assignments.get(t.id)],_invoiceLedgerActive:true}:t)};
  return {ok:true,plan,rejected:[],snapshot:next,count:plan.length,taskCount:assignments.size};
 }
+
+let ccgeCRDCentralDraft=null,ccgeCRDCentralBusy=false;
+function ccgeCRDCentralClose(){
+ if(ccgeCRDCentralBusy)return;
+ ccgeCRDCentralDraft=null;
+ document.getElementById('crdCentralModal').classList.remove('open');
+}
+function ccgeCRDCentralRender(){
+ const host=document.getElementById('crdCentralReview'),btn=document.getElementById('confirmCRDCentral');
+ const draft=ccgeCRDCentralDraft;
+ if(!draft){host.textContent='Selecione um PDF para revisar.';btn.disabled=true;return}
+ const plan=ccgePlanCRDDistribution(draft.rows,state.tasks),rejected=plan.filter(p=>p.status!=='ready');
+ const summary=document.createElement('p');
+ summary.textContent=plan.length+' linha(s) identificada(s); '+(plan.length-rejected.length)+' pronta(s); '+rejected.length+' pendência(s).';
+ const table=document.createElement('table');table.style.width='100%';
+ const head=document.createElement('thead');const tr=document.createElement('tr');
+ for(const name of ['CRD','Mapa','NF','Fornecedor','Descrição','Valor','Tarefa / situação']){const th=document.createElement('th');th.textContent=name;tr.appendChild(th)}head.appendChild(tr);table.appendChild(head);
+ const body=document.createElement('tbody');
+ for(const p of plan){
+  const row=document.createElement('tr'),r=p.row,task=state.tasks.find(t=>t.id===p.taskId);
+  for(const value of [r.crd,r.measurement,r.number,r.supplier,r.description,String(r.amount),task?taskDisplayName(task):p.status]){
+   const td=document.createElement('td');td.textContent=value==null?'':String(value);td.style.padding='6px';row.appendChild(td);
+  }
+  body.appendChild(row);
+ }
+ table.appendChild(body);host.replaceChildren(summary,table);
+ btn.disabled=!!rejected.length||!plan.length||ccgeCRDCentralBusy;
+}
+async function ccgeCRDCentralLoad(file){
+ if(!file||ccgeCRDCentralBusy)return;
+ ccgeCRDCentralBusy=true;ccgeCRDCentralDraft=null;
+ const host=document.getElementById('crdCentralReview');
+ host.textContent='Lendo documento...';document.getElementById('confirmCRDCentral').disabled=true;
+ try{
+  if(!/\.pdf$/i.test(file.name||'')&&!/pdf/i.test(file.type||''))throw Error('Selecione um arquivo PDF.');
+  const rows=ccgeParseCRDRows(await pdfText(file));
+  if(!rows.length)throw Error('Nenhuma linha de CRD identificada.');
+  const layout=await ccgeCRDLayoutFromPDF(file);
+  const aligned=layout.supplierRows.length===rows.length&&layout.descriptionRows.length===rows.length&&rows.every((r,i)=>r.measurement===layout.supplierRows[i].measurement&&r.measurement===layout.descriptionRows[i].measurement);
+  if(!aligned)throw Error('Não foi possível alinhar todas as linhas do PDF com segurança.');
+  for(let i=0;i<rows.length;i++){
+   rows[i].supplier=layout.supplierRows[i].value||'';
+   rows[i].description=layout.descriptionRows[i].value||'';
+  }
+  ccgeCRDCentralDraft={rows,name:file.name};
+ }catch(err){host.textContent='Importação bloqueada: '+(err.message||String(err));}
+ finally{ccgeCRDCentralBusy=false;ccgeCRDCentralRender();}
+}
+async function ccgeCRDCentralConfirm(){
+ if(ccgeCRDCentralBusy||!ccgeCRDCentralDraft)return;
+ const draft=ccgeCRDCentralDraft,staged=ccgeStageCRDDistribution(persistentStateSnapshot(),draft.rows,draft.name,ccgeNewInvoiceId);
+ if(!staged.ok){ccgeCRDCentralRender();toast('CRD não salvo: existem linhas pendentes ou duplicadas.');return}
+ if(!confirm('Salvar '+staged.count+' medições em '+staged.taskCount+' tarefas?'))return;
+ ccgeCRDCentralBusy=true;document.getElementById('confirmCRDCentral').disabled=true;
+ try{
+  const ok=await salvarEstadoNuvem(staged.snapshot);
+  if(!ok){toast('Falha ao gravar no Supabase. Nenhuma medição confirmada.');return}
+  state=staged.snapshot;safeStore.set(JSON.stringify(staged.snapshot));ccgeCRDCentralDraft=null;
+  document.getElementById('crdCentralModal').classList.remove('open');renderAll();
+  toast('CRD salvo: '+staged.count+' medições distribuídas.');
+ }catch(err){console.error(err);toast('Erro ao salvar CRD. Revise os dados e tente novamente.')}
+ finally{ccgeCRDCentralBusy=false;ccgeCRDCentralRender();}
+}
+document.getElementById('openCRDCentral').addEventListener('click',()=>{ccgeCRDCentralDraft=null;document.getElementById('crdCentralModal').classList.add('open');ccgeCRDCentralRender()});
+document.getElementById('closeCRDCentral').addEventListener('click',ccgeCRDCentralClose);
+document.getElementById('cancelCRDCentral').addEventListener('click',ccgeCRDCentralClose);
+document.getElementById('confirmCRDCentral').addEventListener('click',ccgeCRDCentralConfirm);
+document.getElementById('crdCentralFile').addEventListener('change',e=>ccgeCRDCentralLoad(e.target.files?.[0]));
+const ccgeCRDDrop=document.getElementById('crdDropZone');
+ccgeCRDDrop.addEventListener('dragover',e=>{e.preventDefault()});
+ccgeCRDDrop.addEventListener('drop',e=>{e.preventDefault();ccgeCRDCentralLoad(e.dataTransfer?.files?.[0])});
  function ccgeNewInvoiceId(){return 'inv_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9)}
  function contentSuggestions(txt){const o={},t=String(txt||'').replace(/\s+/g,' ');
  let m=firstMatch(t,[/(?:N(?:OTA)?\s*FISCAL|NF(?:-?E)?|N[ÚU]MERO\s*(?:DA\s*)?(?:NF|NOTA))\s*(?:N[º°.]?|[:#-])?\s*(\d{1,15})/i,/\bNF\s*[Nº°#.: -]*([0-9]{2,15})\b/i]);if(m)o.number=m[1];
