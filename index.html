@@ -2607,7 +2607,7 @@ async function ccgeCRDCentralLoad(file){
   }
   ccgeCRDCentralDraft={rows,name:file.name};
  }catch(err){host.textContent='Importação bloqueada: '+(err.message||String(err));}
- finally{ccgeCRDCentralBusy=false;ccgeCRDCentralRender();}
+ finally{ccgeCRDCentralBusy=false;if(ccgeCRDCentralDraft)ccgeCRDCentralRender();}
 }
 async function ccgeCRDCentralConfirm(){
  if(ccgeCRDCentralBusy||!ccgeCRDCentralDraft)return;
