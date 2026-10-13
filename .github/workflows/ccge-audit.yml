@@ -40,5 +40,7 @@ jobs:
         run: node tests/attachment-cleanup.test.js
       - name: Run CAS authorization regression
         run: node tests/cas-access.test.js
+      - name: Run cloud-first persistence regression
+        run: node tests/persist-cloud-first.test.js
       - name: Run concurrent upload regression
         run: node tests/upload-race.test.js
