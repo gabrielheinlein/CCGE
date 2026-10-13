@@ -2180,6 +2180,7 @@ function initDropZones(root=document){
      if(!files.length){toast('Nenhum arquivo válido foi recebido. Se estiver arrastando diretamente de um e-mail, salve o anexo no computador e tente novamente.');return}
      // Medições usam o File recebido diretamente: não dependem de reconstruir input.files.
      if(zone.dataset.invoiceIndex!==undefined&&typeof window.attachInvoiceFile==='function'){
+       if(files.length!==1){toast('Envie apenas um documento por vez nesta medição. Nenhum arquivo foi importado.');return}
        toast('Arquivo recebido. Iniciando leitura...');
        if(zone.dataset.invoiceUploadBusy==='1'){toast('Aguarde a conclusão do envio anterior.');return}
        zone.dataset.invoiceUploadBusy='1';
