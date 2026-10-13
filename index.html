@@ -2464,6 +2464,31 @@ window.ccgeToggleTaskExpand=function(btn,e){e?.preventDefault?.();e?.stopPropaga
  function firstMatch(txt,patterns){for(const re of patterns){const m=txt.match(re);if(m)return m}return null}
  function ccgeDedupeSupplier(v){let s=String(v||'').replace(/\s+/g,' ').trim(),w=s.split(' ');for(let n=Math.floor(w.length/2);n>=2;n--){const a=w.slice(0,n).join(' '),b=w.slice(n,2*n).join(' ');if(a===b)return a}return s}
  function ccgeParseCRDRows(txt){const t=String(txt||'').replace(/\s+/g,' ').trim();if(!/Controle de Remessa de Documentos/i.test(t))return[];const out=[],startRe=/(\d{2}\/\d{2}\/\d{4})\s+(\d+)\s+(\d{3}-\d{2})\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2}\/\d{2}\/\d{4})\s+(\d+)\s+/g,starts=[];let sm;while((sm=startRe.exec(t)))starts.push({index:sm.index,end:startRe.lastIndex,m:sm});for(let k=0;k<starts.length;k++){const st=starts[k],end=k+1<starts.length?starts[k+1].index:(t.search(/Sub-total\s*=>/i)>=0?t.search(/Sub-total\s*=>/i):t.length),body=t.slice(st.end,end),cn=body.match(/(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})/),amt=body.match(/\b(MO|MAT|LOC)\s+([\d.]+,\d{2})\b/);if(!cn||!amt)continue;let supplier=body.slice(0,cn.index).replace(/^\s*(?:Taxa\s+\d+\s+)?/i,'').trim(),after=body.slice((amt.index||0)+amt[0].length),dm=after.match(/(?:Depósito|Deposito|Boleto)\s+(.+?)(?=\s+(?:Retenção|Tipo\s+Doc|Observação|Sub-total\s*=>|PARA\s+USO)|$)/i);const issue=parseBRDate(...st.m[4].split('/')),due=parseBRDate(...st.m[5].split('/'));out.push({crd:st.m[2],measurement:st.m[3],issueDate:issue,dueDate:due,number:st.m[6],supplier:ccgeDedupeSupplier(supplier),cnpj:cn[1],type:amt[1],amount:parseMoney(amt[2]),description:dm?dm[1].trim():'',competence:issue?issue.slice(0,7):''})}return out}
+
+// Reconstroi a coluna Fornecedor Principal pela geometria do PDF.
+// O texto linear perde nomes divididos entre linhas, como MASTER SOLUCOES.
+function ccgeCRDLayoutSuppliers(items,pageWidth){
+ const usable=(items||[]).map(x=>({text:String(x.str||'').trim(),x:Number(x.transform?.[4]),y:Number(x.transform?.[5])})).filter(x=>x.text&&Number.isFinite(x.x)&&Number.isFinite(x.y));
+ const maps=usable.filter(x=>/^\d{3}-\d{2}$/.test(x.text)&&x.x>pageWidth*.09&&x.x<pageWidth*.17).sort((a,b)=>b.y-a.y);
+ if(!maps.length)return new Map();
+ const suppliers=new Map();
+ for(let i=0;i<maps.length;i++){
+  const row=maps[i],above=i?((maps[i-1].y+row.y)/2):row.y+5,below=i+1<maps.length?((row.y+maps[i+1].y)/2):row.y-5;
+  const words=usable.filter(x=>x.x>=pageWidth*.23&&x.x<pageWidth*.35&&x.y<=above&&x.y>below)
+    .sort((a,b)=>Math.abs(b.y-a.y)>1.5?b.y-a.y:a.x-b.x);
+  const name=words.map(x=>x.text).join(' ').replace(/\s+/g,' ').trim();
+  if(name)suppliers.set(row.text,name);
+ }
+ return suppliers;
+}
+async function ccgeCRDLayoutFromPDF(file){
+ const lib=await ensurePdfJs(),pdf=await lib.getDocument({data:await file.arrayBuffer()}).promise,found=new Map();
+ for(let p=1;p<=Math.min(pdf.numPages,5);p++){
+  const page=await pdf.getPage(p),content=await page.getTextContent();
+  for(const [k,v] of ccgeCRDLayoutSuppliers(content.items,page.view[2]-page.view[0]))found.set(k,v);
+ }
+ return found;
+}
  function ccgeNewInvoiceId(){return 'inv_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9)}
  function contentSuggestions(txt){const o={},t=String(txt||'').replace(/\s+/g,' ');
  let m=firstMatch(t,[/(?:N(?:OTA)?\s*FISCAL|NF(?:-?E)?|N[ÚU]MERO\s*(?:DA\s*)?(?:NF|NOTA))\s*(?:N[º°.]?|[:#-])?\s*(\d{1,15})/i,/\bNF\s*[Nº°#.: -]*([0-9]{2,15})\b/i]);if(m)o.number=m[1];
@@ -2474,7 +2499,14 @@ window.ccgeToggleTaskExpand=function(btn,e){e?.preventDefault?.();e?.stopPropaga
  m=firstMatch(t,[/(?:COMPET[EÊ]NCIA|PER[IÍ]ODO\s+DE\s+REFER[EÊ]NCIA)\s*[:\-]?\s*(0?[1-9]|1[0-2])[\/-](\d{4})/i]);if(m)o.competence=`${m[2]}-${String(Number(m[1])).padStart(2,'0')}`;
  m=firstMatch(t,[/(?:MEDIÇ[AÃ]O|BOLETIM\s+DE\s+MEDIÇ[AÃ]O)\s*(?:N[º°.]?|[:#-])?\s*([A-Z0-9.\/-]{1,20})/i]);if(m)o.measurement=m[1];
  return o}
- window.ccgeAnalyzeInvoiceFile=async function(file,i){const initial=window.ccgeReadTaskDraft(),id=initial.invoices?.[i]?.id;if(!id)return false;let sug={};try{sug=filenameSuggestions(file?.name||'')||{}}catch(e){console.warn('Leitura do nome:',e)}let txt='',readStatus='nome do arquivo';try{if(/pdf/i.test(file?.type||'')||/\.pdf$/i.test(file?.name||'')){try{txt=await pdfText(file);if(txt)readStatus='texto do PDF'}catch(e){console.warn('Extração textual indisponível',e)}if(!txt||txt.length<40){try{window.ccgeNotify('Tentando leitura OCR do documento...');txt=await pdfOcr(file);if(txt)readStatus='OCR'}catch(e){console.warn('OCR indisponível',e)}}}const crdRows=txt?ccgeParseCRDRows(txt):[];if(crdRows.some(r=>!String(r.supplier||'').trim()||!Number.isFinite(r.amount)||r.amount<=0)){window.ccgeNotify('CRD contém fornecedor ou valor não identificado. Importação automática bloqueada; confira o PDF e cadastre manualmente.');return false}if(crdRows.length===1){
+ window.ccgeAnalyzeInvoiceFile=async function(file,i){const initial=window.ccgeReadTaskDraft(),id=initial.invoices?.[i]?.id;if(!id)return false;let sug={};try{sug=filenameSuggestions(file?.name||'')||{}}catch(e){console.warn('Leitura do nome:',e)}let txt='',readStatus='nome do arquivo';try{if(/pdf/i.test(file?.type||'')||/\.pdf$/i.test(file?.name||'')){try{txt=await pdfText(file);if(txt)readStatus='texto do PDF'}catch(e){console.warn('Extração textual indisponível',e)}if(!txt||txt.length<40){try{window.ccgeNotify('Tentando leitura OCR do documento...');txt=await pdfOcr(file);if(txt)readStatus='OCR'}catch(e){console.warn('OCR indisponível',e)}}}const crdRows=txt?ccgeParseCRDRows(txt):[];
+if(crdRows.length&&(/pdf/i.test(file?.type||'')||/\.pdf$/i.test(file?.name||''))){
+ try{
+  const layout=await ccgeCRDLayoutFromPDF(file);
+  for(const row of crdRows){const supplier=layout.get(row.measurement);if(supplier)row.supplier=supplier}
+ }catch(err){console.warn('Leitura geométrica do fornecedor indisponível',err)}
+}
+if(crdRows.some(r=>!String(r.supplier||'').trim()||!Number.isFinite(r.amount)||r.amount<=0)){window.ccgeNotify('CRD contém fornecedor ou valor não identificado. Importação automática bloqueada; confira o PDF e cadastre manualmente.');return false}if(crdRows.length===1){
  const t=window.ccgeReadTaskDraft(),j=(t.invoices||[]).findIndex(x=>x.id===id),r=crdRows[0];
  const normalized=v=>String(v||'').trim().replace(/^0+(?=\d)/,'');
  const duplicate=(t.invoices||[]).some((x,k)=>k!==j&&normalized(x._crdNumber)===normalized(r.crd)&&String(x.measurement||'').trim()===String(r.measurement||'').trim()&&String(x.number||'').trim()===String(r.number||'').trim());
