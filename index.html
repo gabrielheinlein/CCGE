@@ -2517,7 +2517,18 @@ if(crdRows.length&&(/pdf/i.test(file?.type||'')||/\.pdf$/i.test(file?.name||''))
   for(const row of crdRows){const supplier=layout.get(row.measurement);if(supplier)row.supplier=supplier}
  }catch(err){console.warn('Leitura geométrica do fornecedor indisponível',err)}
 }
-if(crdRows.some(r=>!String(r.supplier||'').trim()||!/^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/.test(String(r.cnpj||''))||!String(r.number||'').trim()||!String(r.measurement||'').trim()||!Number.isFinite(r.amount)||r.amount<=0)){window.ccgeNotify('CRD contém fornecedor ou valor não identificado. Importação automática bloqueada; confira o PDF e cadastre manualmente.');return false}if(crdRows.length===1){
+if(crdRows.some(r=>!String(r.supplier||'').trim()||!/^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/.test(String(r.cnpj||''))||!String(r.number||'').trim()||!String(r.measurement||'').trim()||!Number.isFinite(r.amount)||r.amount<=0)){window.ccgeNotify('CRD contém fornecedor ou valor não identificado. Importação automática bloqueada; confira o PDF e cadastre manualmente.');return false}// Confere duplicidades também nas demais tarefas, não apenas no modal aberto.
+if(crdRows.length){
+ const norm=v=>String(v??'').trim().replace(/^0+(?=\\d)/,'');
+ const keys=crdRows.map(r=>[norm(r.crd),String(r.measurement||'').trim(),String(r.number||'').trim()].join('|'));
+ const already=new Set();
+ for(const task of state.tasks||[])for(const invoice of task.invoices||[]){
+  if(!invoice._crdNumber)continue;
+  already.add([norm(invoice._crdNumber),String(invoice.measurement||'').trim(),String(invoice.number||'').trim()].join('|'));
+ }
+ if(new Set(keys).size!==keys.length||keys.some(key=>already.has(key))){window.ccgeNotify('CRD contém medição duplicada ou já registrada em outra tarefa. Importação bloqueada.');return false;}
+}
+if(crdRows.length===1){
  const t=window.ccgeReadTaskDraft(),j=(t.invoices||[]).findIndex(x=>x.id===id),r=crdRows[0];
  if(!String(r.description||'').trim()||String(r.description).trim().normalize('NFC')!==String(taskDisplayName(t)||'').trim().normalize('NFC')){window.ccgeNotify('Descrição do CRD não corresponde à tarefa aberta. Importação bloqueada para evitar custo incorreto.');return false;}
  const normalized=v=>String(v||'').trim().replace(/^0+(?=\d)/,'');
