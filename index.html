@@ -2526,7 +2526,13 @@ if(crdRows.some(r=>!String(r.supplier||'').trim()||!/^\d{2}\.\d{3}\.\d{3}\/\d{4}
  const occupied=['number','measurement','supplier','amount','attachment','_crdNumber'].some(k=>current[k]!==undefined&&current[k]!==null&&current[k]!==''&&current[k]!==0);
  if(occupied){window.ccgeNotify('Esta medição já contém dados. Crie uma Nova Medição vazia para importar o CRD.');return false}
  sug={...sug,...r};
-}if(crdRows.length>1){const t=window.ccgeReadTaskDraft(),j=(t.invoices||[]).findIndex(x=>x.id===id);if(j<0)return false;const base=t.invoices[j]||{};
+}if(crdRows.length>1){const t=window.ccgeReadTaskDraft(),j=(t.invoices||[]).findIndex(x=>x.id===id);
+// Segurança: o importador atual grava todas as linhas na tarefa aberta. CRDs com
+// descrições de tarefas distintas só poderão ser distribuídos pela futura Central.
+const taskName=String(taskDisplayName(t)||'').trim().normalize('NFC');
+const mismatched=crdRows.filter(r=>!String(r.description||'').trim()||String(r.description).trim().normalize('NFC')!==taskName);
+if(mismatched.length){window.ccgeNotify('CRD com descrições diferentes da tarefa aberta ou não identificadas. Importação bloqueada para evitar custos na tarefa errada.');return false;}
+if(j<0)return false;const base=t.invoices[j]||{};
 const occupied=Object.entries(base).some(([k,v])=>['number','measurement','supplier','amount','attachment','_crdNumber'].includes(k)&&v!=null&&v!==''&&v!==0);
 if(occupied){window.ccgeNotify('Esta medição já contém dados. Crie uma Nova Medição vazia para importar o CRD sem substituir informações.');return false}
 const keyOf=x=>[String(x._crdNumber||x.crd||'').replace(/^0+/,''),String(x.measurement||'').trim(),String(x.number||'').trim()].join('|');
