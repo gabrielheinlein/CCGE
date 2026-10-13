@@ -1162,8 +1162,8 @@ function nav(page){if(page==='reports'){const ids=['reportPhase','reportSupplier
 $$('#nav button').forEach(b=>b.onclick=()=>nav(b.dataset.page));$$('[data-goto]').forEach(b=>b.onclick=()=>nav(b.dataset.goto));
 
 /* Motor financeiro canônico v1.58
-   Fonte da verdade: Estimativa (ME) → Aditivos estimados → Estimativa atualizada → Medições/NFs → Real/Incorrido → Pago.
-   As chaves contracted/contractUpdated/contractBalance são mantidas como aliases internos para compatibilidade com dados e rotinas legadas. */
+   Fonte da verdade: ME aprovado (estimated) e contrato (contracted) são bases independentes.
+   Aditivos integram somente o contratado atualizado; medições/NFs representam incorrido e pagamentos representam pago. */
 function financialTruth(t){
  const legacyBudget=ccgeMoneyNumber(t?.estimated);
  const approvedEntered=ccgeMoneyNumber(t?.approved),approvedOverride=false,approvedEffective=0;
