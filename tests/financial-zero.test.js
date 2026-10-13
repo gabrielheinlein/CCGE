@@ -1,0 +1,12 @@
+const assert=require('node:assert/strict'),fs=require('node:fs');
+const html=fs.readFileSync(__dirname+'/../index.html','utf8');
+const a=html.indexOf('function financialTruth(t)'),b=html.indexOf('function approvedWithAdditives',a);
+const truth=new Function('ccgeMoneyNumber','canonicalAdditives',html.slice(a,b)+';return financialTruth')(v=>Number(v||0),t=>Number(t.additives||0));
+assert.equal(truth({invoices:[{amount:80,situation:'Cancelada'}],invoiced:80}).actualCost,0);
+assert.equal(truth({payments:[{paidAmount:0}],paid:80}).paid,0);
+assert.equal(truth({invoices:[],_invoiceLedgerActive:true,invoiced:80}).actualCost,0);
+assert.equal(truth({payments:[],_paymentLedgerActive:true,paid:80}).paid,0);
+assert.equal(truth({invoices:[],payments:[],invoiced:80,paid:25}).actualCost,80);
+assert.equal(truth({invoices:[],payments:[],invoiced:80,paid:25}).paid,25);
+assert.equal(truth({invoices:[{amount:25,situation:'Ativa'}],invoiced:80}).actualCost,25);
+console.log('Financial ledgers: cancelled invoices, zero payment, removed last entry, legacy compatibility and active amount PASS');
