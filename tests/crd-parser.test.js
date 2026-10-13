@@ -9,7 +9,7 @@ assert(start>=0&&end>start,'Funções CRD não encontradas');
 const source=html.slice(start,end);
 const parseBRDate=(d,m,y)=>{const year=Number(y),month=Number(m),day=Number(d);return year+'-'+String(month).padStart(2,'0')+'-'+String(day).padStart(2,'0')};
 const parseMoney=v=>Number(String(v).replace(/\./g,'').replace(',','.'));
-const parse=new Function('parseBRDate','parseMoney',source+';return ccgeParseCRDRows')(parseBRDate,parseMoney);
+const parse=new Function('parseBRDate','window',source+';return ccgeParseCRDRows')(parseBRDate,{ccgeParseMoney:parseMoney});
 const row=(crd,map,nf,company,cnpj,type,amount,method,description)=>
   '18/09/2026 '+crd+' '+map+' 18/09/2026 15/10/2026 '+nf+
   ' Taxa 09 '+company+' '+company+' '+cnpj+' '+type+' '+amount+
@@ -29,3 +29,4 @@ assert.equal(actual[1].amount,489);
 assert.equal(actual[0].type,'LOC');
 assert.equal(actual[1].type,'MO');
 console.log('CRD parser: 2 lançamentos, fornecedores, categorias, valores e descrições PASSARAM');
+
