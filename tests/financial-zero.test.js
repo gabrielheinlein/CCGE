@@ -21,3 +21,10 @@ assert.equal(state.tasks[2].invoiced,50,'Legacy invoice total must survive');
 assert.equal(state.tasks[2].paid,20,'Legacy payment total must survive');
 
 assert.ok(html.includes('t._paymentLedgerActive=true;t.payments.push(...items)'), 'Editing payment commitments must activate payment ledger');
+
+const separated=truth({estimated:91000,contracted:50000,additives:80000,invoices:[{amount:25000,situation:'Ativa'}]});
+assert.equal(separated.estimateBase,91000,'ME estimate must not be replaced by contract');
+assert.equal(separated.estimateUpdated,91000,'Contract additives must not inflate approved ME estimate');
+assert.equal(separated.contracted,50000,'Contract base must remain distinct');
+assert.equal(separated.contractUpdated,130000,'Contract total must include additives');
+assert.equal(separated.estimateVariance,-66000,'Estimated versus realized must use ME estimate');
