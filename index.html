@@ -578,6 +578,7 @@ function salvarEstadoNuvem(snapshot) {
 }
 
 async function carregarEstadoNuvem() {
+  ccgeCloudRevision=null;
   try {
     const { data, error } = await supabaseClient
       .from("ccge_state")
@@ -585,9 +586,14 @@ async function carregarEstadoNuvem() {
       .eq("id", CCGE_STATE_ID)
       .maybeSingle();
     if (error) throw error;
-    if (!data || data.dados == null || !Number.isSafeInteger(Number(data.revisao)) || Number(data.revisao)<0) return null;
+    // Nunca tratar revisao ausente/null como zero: Number(null) === 0.
+    // Validar o JSON antes de autorizar qualquer gravação.
+    if (!data || data.dados == null || data.revisao == null ||
+        !Number.isSafeInteger(Number(data.revisao)) || Number(data.revisao)<0) return null;
+    const loaded=typeof data.dados === "string" ? JSON.parse(data.dados) : data.dados;
+    if(!loaded || typeof loaded!=='object' || Array.isArray(loaded))return null;
     ccgeCloudRevision=Number(data.revisao);
-    return typeof data.dados === "string" ? JSON.parse(data.dados) : data.dados;
+    return loaded;
   } catch (error) {
     console.error("Erro ao carregar do Supabase:", error);
     return null;
