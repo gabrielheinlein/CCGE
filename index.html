@@ -1892,8 +1892,10 @@ async function submitMonthlyAttachment(){
  monthlyUploadInProgress=true;
  try{
    let c=monthlyFromModal();
-   if(c.attachment?.storagePath)await deleteCCGEAttachment(c.attachment);
-   c.attachment=await readMonthlyAttachment(file);
+   const uploaded=await readMonthlyAttachment(file);
+   uploaded._pendingUpload=true;
+   if(c.attachment?.storagePath)$('#monthlyModal').dataset.pendingDelete=JSON.stringify(c.attachment);
+   c.attachment=uploaded;
    $('#monthlyModal').dataset.temp=JSON.stringify(c);input.value='';renderMonthlyAttachment(c);
    toast('Documento salvo no Supabase. Salve o contrato para concluir.');
  }catch(err){console.error(err);toast(`Não foi possível anexar o documento: ${err.message||'erro desconhecido'}`)}
