@@ -12,7 +12,6 @@ assert.equal(truth({invoices:[{amount:25,situation:'Ativa'}],invoiced:80}).actua
 console.log('Financial ledgers: cancelled invoices, zero payment, removed last entry, legacy compatibility and active amount PASS');
 
 const ra=html.indexOf('function recomputeDerivedState()'),rb=html.indexOf('function scheduleReactiveRender()',ra);
-const recalc=new Function('state','canonicalAdditives','ccgeMoneyNumber',html.slice(ra,rb)+';return recomputeDerivedState')( {tasks:[]},()=>0,v=>Number(v||0));
 const state={tasks:[{invoices:[{amount:80,situation:'Cancelada'}],invoiced:80,payments:[],_paymentLedgerActive:true,paid:90},{invoices:[],_invoiceLedgerActive:true,invoiced:70,payments:[],paid:30},{invoices:[],invoiced:50,payments:[],paid:20}]};
 new Function('state','canonicalAdditives','ccgeMoneyNumber',html.slice(ra,rb)+';return recomputeDerivedState')(state,()=>0,v=>Number(v||0))();
 assert.equal(state.tasks[0].invoiced,0,'Canceled invoices must not contribute to realized');
