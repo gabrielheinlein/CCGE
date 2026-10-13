@@ -30,6 +30,8 @@ jobs:
           NODE
       - name: Run CRD parser regression
         run: node tests/crd-parser.test.js
+      - name: Run CRD mixed-task distribution regression
+        run: node tests/crd-distribution.test.js
       - name: Run multiline supplier regression
         run: node tests/crd-layout.test.js
       - name: Run invoice upload pipeline regression
