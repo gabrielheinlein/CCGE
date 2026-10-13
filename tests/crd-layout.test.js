@@ -1,7 +1,7 @@
 // node tests/crd-layout.test.js
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
-const a=html.indexOf('function ccgeCRDLayoutSuppliers('),b=html.indexOf('async function ccgeCRDLayoutFromPDF(',a);
+const a=html.indexOf('function ccgeCRDLayoutCells('),b=html.indexOf('async function ccgeCRDLayoutFromPDF(',a);
 assert(a>=0&&b>a,'Leitor geométrico não encontrado');
 const parse=new Function(html.slice(a,b)+';return ccgeCRDLayoutSuppliers')();
 const item=(str,x,y)=>({str,transform:[1,0,0,1,x,y]});
@@ -20,7 +20,7 @@ assert.equal(names.get('096-26'),'RM LOCAÇÕES DE EQUIPAMENTOS LTDA');
 console.log('CRD layout: cabeçalho, fornecedor multilinha e subtotal PASSARAM');
 
 
-const dStart=html.indexOf('function ccgeCRDLayoutDescriptions('),dEnd=html.indexOf('async function ccgeCRDLayoutFromPDF(',dStart);
+const dStart=html.indexOf('function ccgeCRDLayoutCells('),dEnd=html.indexOf('async function ccgeCRDLayoutFromPDF(',dStart);
 assert(dStart>=0&&dEnd>dStart,'Leitor geométrico de descrições não encontrado');
 const parseDescriptions=new Function(html.slice(dStart,dEnd)+';return ccgeCRDLayoutDescriptions')();
 const desc=parseDescriptions([item('013-26',87,495),item('Terraplenagem',765,495),item('076-26',87,483),item("Higienização caixa d'água",765,483),item('MASTER SOLUCOES',235,483)],842);
@@ -28,3 +28,10 @@ assert.equal(desc.get('013-26'),'Terraplenagem');
 assert.equal(desc.get('076-26'),"Higienização caixa d'água");
 assert.ok(html.includes('if(description)row.description=description'),'PDF geometry must override contaminated linear description');
 console.log('CRD descriptions: column extraction ignores supplier text PASS');
+
+const cells=new Function(html.slice(a,b)+';return ccgeCRDLayoutCells')();
+const repeated=[item('013-26',87,495),item('FORNECEDOR A',208,495),item('Terraplenagem',765,495),item('013-26',87,483),item('FORNECEDOR B',208,483),item('Terraplenagem',765,483)];
+assert.deepEqual(cells(repeated,842,.23,.35).map(x=>x.value),['FORNECEDOR A','FORNECEDOR B'],'Repeated ME maps must retain each supplier occurrence');
+assert.deepEqual(cells(repeated,842,.88,1.2).map(x=>x.value),['Terraplenagem','Terraplenagem'],'Repeated ME maps must retain each description occurrence');
+assert.ok(html.includes('const aligned=layout.supplierRows?.length===crdRows.length'),'Row-level PDF geometry must align to parsed invoices');
+assert.ok(html.includes('CRD com mapas repetidos sem alinhamento geométrico seguro. Importação bloqueada.'),'Ambiguous repeated maps must fail safely');
