@@ -18,3 +18,19 @@ console.log('CRD planner: duplicate, exact ME match, ambiguity, missing task, in
 const withoutSupplier=row('055','097-26','7','Terraplenagem');withoutSupplier.supplier='';assert.equal(plan([withoutSupplier],tasks)[0].status,'invalid','Supplier is required before automatic distribution');
 
 const withoutCNPJ=row('055','098-26','8','Terraplenagem');withoutCNPJ.cnpj='';assert.equal(plan([withoutCNPJ],tasks)[0].status,'invalid','CNPJ is required before automatic distribution');
+
+const stage=new Function('taskBaseName',html.slice(a,b)+';return ccgeStageCRDDistribution')(t=>t.name);
+const base={tasks:[{id:'earth',name:'Terraplenagem',invoices:[]},{id:'hygiene',name:"Higienização caixa d'água",invoices:[]}]};
+const beforeStage=JSON.stringify(base);
+let seq=0;
+const staged=stage(base,[row('055','099-26','101','Terraplenagem'),row('055','100-26','102',"Higienização caixa d'água")],'CRD 055.pdf',()=>String(++seq));
+assert.equal(staged.ok,true,'Valid CRD across tasks must stage');
+assert.equal(staged.count,2);
+assert.equal(staged.taskCount,2);
+assert.equal(staged.snapshot.tasks[0].invoices.length,1);
+assert.equal(staged.snapshot.tasks[1].invoices.length,1);
+assert.equal(JSON.stringify(base),beforeStage,'Staging must not mutate live state before CAS');
+const rejectedStage=stage(base,[row('055','099-26','101','Terraplenagem'),row('055','103-26','103','No matching task')],'CRD 055.pdf',()=>String(++seq));
+assert.equal(rejectedStage.ok,false,'A mixed CRD with unmatched lines must not stage partial writes');
+assert.equal(rejectedStage.snapshot,null);
+console.log('CRD atomic staging across tasks PASS');
