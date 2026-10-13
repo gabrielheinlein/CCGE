@@ -28,5 +28,8 @@ assert.equal(actual[1].description,'Locação de motobomba');
 assert.equal(actual[1].amount,489);
 assert.equal(actual[0].type,'LOC');
 assert.equal(actual[1].type,'MO');
+// A importação de CRDs mistos deve ser bloqueada antes de modificar a tarefa.
+const htmlGuard=html.includes("const mismatched=crdRows.filter(r=>")&&html.includes("Importação bloqueada para evitar custos na tarefa errada.");
+assert.ok(htmlGuard,'Proteção contra CRD de tarefas diferentes ausente');
 console.log('CRD parser: 2 lançamentos, fornecedores, categorias, valores e descrições PASSARAM');
 
