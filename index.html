@@ -1080,9 +1080,9 @@ function recomputeDerivedState(){
    t.additiveRecords=Array.isArray(t.additiveRecords)?t.additiveRecords:[];
    t.additives=canonicalAdditives(t);
    t.payments=Array.isArray(t.payments)?t.payments:[];
-   if(t.payments.length)t.paid=t.payments.reduce((s,p)=>s+ccgeMoneyNumber(p.paidAmount),0);
+   if(t.payments.length||t._paymentLedgerActive)t.paid=t.payments.reduce((s,p)=>s+ccgeMoneyNumber(p.paidAmount),0);
    t.invoices=Array.isArray(t.invoices)?t.invoices:[];
-   if(t.invoices.length)t.invoiced=t.invoices.reduce((s,i)=>s+ccgeMoneyNumber(i.amount),0);
+   if(t.invoices.length||t._invoiceLedgerActive)t.invoiced=t.invoices.filter(i=>(i.situation||'Ativa')!=='Cancelada').reduce((s,i)=>s+ccgeMoneyNumber(i.amount),0);
  });
 }
 function scheduleReactiveRender(){
