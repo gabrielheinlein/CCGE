@@ -14,3 +14,4 @@ const persist=new Function('persistentStateSnapshot','safeStore','salvarEstadoNu
  assert.equal(saved.length,1,'Successful cloud CAS must update local snapshot');
  console.log('Cloud/local persistence ordering PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});
+

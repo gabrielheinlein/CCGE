@@ -40,3 +40,4 @@ assert.equal(stillReferenced(oldFile,{tasks:[],monthlyContracts:[{attachment:{st
 assert.equal(stillReferenced(oldFile,{tasks:[],monthlyContracts:[{attachment:{storagePath:'other.pdf'}}]}),false,'Unreferenced attachment may be deleted after cloud save');
 assert.ok(html.includes('if(!ccgeAttachmentStillReferenced(oldAttachment,state))await deleteCCGEAttachment(oldAttachment)'),'Monthly save must check live references before deleting');
 console.log('Shared monthly/task attachment deletion guard PASS');
+

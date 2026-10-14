@@ -10,3 +10,4 @@ assert.match(sql,/grant execute on function public\.ccge_save_state_cas\(uuid,bi
 assert.match(html,/\.rpc\('ccge_save_state_cas'/,'Client must use RPC');
 assert.match(html,/p_expected_revision:ccgeCloudRevision/,'Client must pass expected revision');
 console.log('CAS-only access policy source regression PASS');
+

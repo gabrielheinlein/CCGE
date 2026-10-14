@@ -28,3 +28,4 @@ assert.equal(separated.estimateUpdated,91000,'Contract additives must not inflat
 assert.equal(separated.contracted,50000,'Contract base must remain distinct');
 assert.equal(separated.contractUpdated,130000,'Contract total must include additives');
 assert.equal(separated.estimateVariance,-66000,'Estimated versus realized must use ME estimate');
+

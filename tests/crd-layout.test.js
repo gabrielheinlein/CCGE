@@ -35,3 +35,4 @@ assert.deepEqual(cells(repeated,842,.23,.35).map(x=>x.value),['FORNECEDOR A','FO
 assert.deepEqual(cells(repeated,842,.88,1.2).map(x=>x.value),['Terraplenagem','Terraplenagem'],'Repeated ME maps must retain each description occurrence');
 assert.ok(html.includes('const aligned=layout.supplierRows?.length===crdRows.length'),'Row-level PDF geometry must align to parsed invoices');
 assert.ok(html.includes('CRD com mapas repetidos sem alinhamento geométrico seguro. Importação bloqueada.'),'Ambiguous repeated maps must fail safely');
+

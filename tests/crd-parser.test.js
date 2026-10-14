@@ -48,3 +48,4 @@ assert.equal(parsedMultipage[0].description,'Terraplenagem');
 assert.equal(parsedMultipage[1].description,"Higienização caixa d'água");
 assert.equal(parsedMultipage[1].amount,996.57);
 console.log('CRD parser: multiple page subtotal boundaries PASS');
+

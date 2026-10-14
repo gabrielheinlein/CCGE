@@ -1,10 +1,10 @@
 const assert=require('node:assert/strict'),fs=require('node:fs');
 const html=fs.readFileSync(__dirname+'/../index.html','utf8');
-const a=html.indexOf('function ccgePlanCRDDistribution('),b=html.indexOf('let ccgeCRDCentralDraft=',a);
+const a=html.indexOf('function ccgeCRDNormalized('),b=html.indexOf('let ccgeCRDCentralDraft=',a);
 assert.ok(a>=0&&b>a,'Pure CRD distribution planner missing');
 const plan=new Function('taskBaseName',html.slice(a,b)+';return ccgePlanCRDDistribution')(t=>t.name);
 const tasks=[{id:'earth',name:'Terraplenagem',invoices:[{_crdNumber:'35',measurement:'013-26',number:'212'}]},{id:'hygiene',name:"Higienização caixa d'água"},{id:'dup1',name:'EPC'},{id:'dup2',name:'EPC'},{id:'archived',name:'Portaria',archived:true}];
-const row=(crd,measurement,number,description,amount=100)=>({crd,measurement,number,description,amount,supplier:'Fornecedor Teste',cnpj:'12.345.678/0001-90'});
+const row=(crd,measurement,number,description,amount=100)=>({competence:'2026-10',crd,measurement,number,description,amount,supplier:'Fornecedor Teste',cnpj:'12.345.678/0001-90'});
 const input=[row('035','013-26','212','Terraplenagem'),row('055','100-26','1006',"Higienização caixa d'água"),row('055','074-26','52993','EPC'),row('055','009-26','42','Portaria'),row('055','093-26','771426106','Locação gerador'),row('055','096-26','15523','Terraplenagem'),row('055','096-26','15523','Terraplenagem'),row('055','045-26','565','Terraplenagem',0)];
 const before=JSON.stringify({tasks,input});
 const result=plan(input,tasks);
@@ -53,3 +53,4 @@ assert.equal(traced.ok,true);
 assert.equal(traced.snapshot.tasks[0].invoices[0].supplierTaxId,trace.cnpj,'CRD supplier CNPJ must remain auditable');
 assert.equal(traced.snapshot.tasks[0].invoices[0].documentType,'MO','CRD document category must remain auditable');
 console.log('CRD supplier audit metadata PASS');
+

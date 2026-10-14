@@ -31,3 +31,4 @@ async function scenario(name,analysis,uploadOk,expected){
  console.log('Invoice pipeline: accepted, blocked duplicate and failed upload PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});
 
+

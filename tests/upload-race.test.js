@@ -22,3 +22,4 @@ function harness(){
  assert.deepEqual(JSON.parse(s.modal.dataset.temp),switched,'failed upload must not restore the previous task into another modal');
  console.log('Upload races: concurrent imports, unrelated edits and task switches PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});
+

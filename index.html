@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- CCGE v1.62.7.3: homologação isolada; correção de escopo do parser e renderização. Antes: parser CRD tolerante ao layout e expansão direta da tarefa. -->
+<!-- CCGE v1.62.7.4: candidata de testes: seleção parcial de CRDs por tarefa; homologação funcional pendente. -->
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
@@ -543,16 +543,29 @@ function queueTaskAttachmentDelete(f){if(!f)return;if(f._pendingUpload){const q=
 function markPendingUploads(arr){return (arr||[]).map(f=>f&&f.storagePath?{...f,_pendingUpload:true}:f)}
 function cleanAttachmentMeta(f){if(!f||typeof f!=='object')return f;const x={...f};delete x._pendingUpload;return x}
 function cleanTaskAttachmentMeta(t){t.mapFiles=(t.mapFiles||[]).map(cleanAttachmentMeta);t.documents=(t.documents||[]).map(cleanAttachmentMeta);t.videos=(t.videos||[]).map(cleanAttachmentMeta);t.photos=(t.photos||[]).map(cleanAttachmentMeta);t.additiveRecords=(t.additiveRecords||[]).map(a=>({...a,files:(a.files||[]).map(cleanAttachmentMeta)}));t.invoices=(t.invoices||[]).map(i=>({...i,attachment:cleanAttachmentMeta(i.attachment)}));return t}
-async function cleanupTaskPendingUploads(){if(!document.querySelector('#taskModal')?.dataset.temp)return;let t;try{t=JSON.parse(document.querySelector('#taskModal').dataset.temp)}catch(e){return}const all=[...(t.mapFiles||[]),...(t.documents||[]),...(t.videos||[]),...(t.photos||[]),...(t.additiveRecords||[]).flatMap(a=>a.files||[]),...(t.invoices||[]).map(i=>i.attachment).filter(Boolean)];const temporary=[...all,...taskPendingDeletes()].filter(x=>x?._pendingUpload&&x.storagePath);const seen=new Set();for(const f of temporary){const key=(f.storageBucket||CCGE_STORAGE_BUCKET)+'/'+f.storagePath;if(seen.has(key))continue;seen.add(key);try{await deleteCCGEAttachment(f)}catch(e){console.warn('Falha ao remover upload temporário descartado',e)}}}
+async function cleanupTaskPendingUploads(){if(!document.querySelector('#taskModal')?.dataset.temp)return;let t;try{t=JSON.parse(document.querySelector('#taskModal').dataset.temp)}catch(e){return}const all=[...(t._pendingCRDSources||[]).map(x=>x.attachment).filter(Boolean),...(t.mapFiles||[]),...(t.documents||[]),...(t.videos||[]),...(t.photos||[]),...(t.additiveRecords||[]).flatMap(a=>a.files||[]),...(t.invoices||[]).map(i=>i.attachment).filter(Boolean)];const temporary=[...all,...taskPendingDeletes()].filter(x=>x?._pendingUpload&&x.storagePath);const seen=new Set();for(const f of temporary){const key=(f.storageBucket||CCGE_STORAGE_BUCKET)+'/'+f.storagePath;if(seen.has(key))continue;seen.add(key);try{await deleteCCGEAttachment(f)}catch(e){console.warn('Falha ao remover upload temporário descartado',e)}}}
 function ccgeAttachmentStillReferenced(f,snapshot){
  if(!f?.storagePath)return false;
  const key=(f.storageBucket||CCGE_STORAGE_BUCKET)+'/'+f.storagePath;
- const refs=[];
+ const refs=(snapshot?.crdImports||[]).map(x=>x.attachment);
  for(const t of snapshot?.tasks||[])refs.push(...(t.mapFiles||[]),...(t.documents||[]),...(t.videos||[]),...(t.photos||[]),...(t.additiveRecords||[]).flatMap(a=>a.files||[]),...(t.invoices||[]).map(i=>i.attachment));
  for(const c of snapshot?.monthlyContracts||[])refs.push(c.attachment);
  return refs.some(a=>a?.storagePath&&(a.storageBucket||CCGE_STORAGE_BUCKET)+'/'+a.storagePath===key);
 }
 async function deleteCCGEAttachment(f){if(!f?.storagePath)return true;const {error}=await supabaseClient.storage.from(f.storageBucket||CCGE_STORAGE_BUCKET).remove([f.storagePath]);if(error){console.error('Falha ao remover Storage',error);throw error}return true}
+
+
+const CCGE_PENDING_STORAGE_KEY='ccge-test-pending-storage-deletes';
+function ccgePendingStorageDeletes(){try{return JSON.parse(localStorage.getItem(CCGE_PENDING_STORAGE_KEY)||'[]')}catch{return []}}
+function ccgeRememberStorageDelete(f){const list=ccgePendingStorageDeletes(),key=(f.storageBucket||CCGE_STORAGE_BUCKET)+'/'+f.storagePath;if(!list.some(x=>(x.storageBucket||CCGE_STORAGE_BUCKET)+'/'+x.storagePath===key))list.push(f);localStorage.setItem(CCGE_PENDING_STORAGE_KEY,JSON.stringify(list));}
+function ccgeForgetStorageDelete(f){const key=(f.storageBucket||CCGE_STORAGE_BUCKET)+'/'+f.storagePath;localStorage.setItem(CCGE_PENDING_STORAGE_KEY,JSON.stringify(ccgePendingStorageDeletes().filter(x=>(x.storageBucket||CCGE_STORAGE_BUCKET)+'/'+x.storagePath!==key)));}
+async function ccgeDiscardUnconfirmedUpload(f){
+ if(!f?.storagePath)return true;ccgeRememberStorageDelete(f);
+ try{const {data,error}=await supabaseClient.from('ccge_state').select('dados').eq('id',CCGE_STATE_ID).maybeSingle();if(error||!data?.dados)throw Error('Não foi possível verificar os vínculos no banco.');const remote=typeof data.dados==='string'?JSON.parse(data.dados):data.dados;
+  if(ccgeAttachmentStillReferenced(f,remote)){ccgeForgetStorageDelete(f);return false;}await deleteCCGEAttachment(f);ccgeForgetStorageDelete(f);return true;
+ }catch(err){console.warn('Exclusão física pendente, preservada para nova tentativa',err);window.ccgeNotify('A remoção do PDF ficou pendente e será tentada novamente após verificar os vínculos.');return false;}
+}
+async function ccgeRetryPendingStorageDeletes(){for(const f of ccgePendingStorageDeletes())await ccgeDiscardUnconfirmedUpload(f);}
 
 // Serializa todas as gravações deste navegador para impedir que requisições concorrentes
 // confirmem fora de ordem. Não substitui controle de versão entre dispositivos.
@@ -628,12 +641,13 @@ async function carregarEstadoNuvem() {
 </form></div>
 <div class="app">
 <aside class="sidebar">
- <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small id="ccgeVisibleVersion">CCGE v1.62.7.3 · TESTES</small></div></div>
+ <div class="brand"><div class="logo">G</div><div><h1>Gestão do Empreendimento</h1><small id="ccgeVisibleVersion">CCGE v1.62.7.4 · TESTES</small></div></div>
  <nav class="nav" id="nav">
   <button class="active" data-page="home">⌂ <span class="label">Centro de Comando</span></button>
   <button data-page="structure" data-context="work">◫ <span class="label">Etapas</span></button>
   <button data-page="tasks" data-context="work">✓ <span class="label">Tarefas</span></button>
   <button data-page="projects" data-context="project">▦ <span class="label">Projetos</span></button>
+  <button type="button" id="openCRDCentralNav" hidden>▣ <span class="label">Central de Medições</span></button>
   <button data-page="financial">R$ <span class="label">Gestão Financeira</span></button>
   <button data-page="suppliers">◎ <span class="label">Fornecedores</span></button>
   <button data-page="agenda">◷ <span class="label">Agenda Financeira</span></button>
@@ -693,7 +707,7 @@ async function carregarEstadoNuvem() {
   </section>
 
   <section class="page" id="page-financial">
-   <div class="hero"><div><h2>Gestão Financeira</h2><p>Operação financeira, previsões e inteligência executiva integradas às informações das obras e projetos.</p></div><div class="hero-actions"><button class="secondary" type="button" id="openCRDCentral">Central de Medições — importar CRD</button><button class="secondary" data-goto="agenda">Agenda Financeira</button><button class="secondary" data-goto="suppliers">Fornecedores</button></div></div>
+   <div class="hero"><div><h2>Gestão Financeira</h2><p>Operação financeira, previsões e inteligência executiva integradas às informações das obras e projetos.</p></div><div class="hero-actions"><button class="secondary" type="button" id="openCRDCentral" hidden>Central de Medições — importar CRD</button><button class="secondary" data-goto="agenda">Agenda Financeira</button><button class="secondary" data-goto="suppliers">Fornecedores</button></div></div>
    <div class="finance-tabs"><button class="finance-tab active" data-finance-tab="executive">Visão Executiva</button><button class="finance-tab" data-finance-tab="operation">Operação Financeira</button><button class="finance-tab" data-finance-tab="analysis">Análises Financeiras</button></div>
    <div class="finance-pane active" id="finance-executive">
     <div class="financial-grid" id="financialMetrics" style="margin:16px 0"></div><div class="health-grid" id="financialHealth"></div>
@@ -862,7 +876,7 @@ async function carregarEstadoNuvem() {
  <div id="supplierContactHistory" class="mini-list"></div>
 </div><div class="dialog-foot"><button class="secondary" id="cancelSupplier">Cancelar</button><button class="primary" id="saveSupplier">Salvar fornecedor</button></div></div></div>
 
-<div class="modal" id="crdCentralModal"><div class="dialog" style="max-width:1100px;width:94vw"><div class="dialog-head"><h3>Central de Medições — distribuição de CRD</h3><button type="button" class="icon-btn" id="closeCRDCentral">✕</button></div><div class="dialog-body"><p>Arraste um PDF de CRD ou selecione o arquivo. Cada linha será vinculada somente à tarefa com descrição correspondente no ME. Nenhum lançamento é salvo antes da confirmação.</p><div id="crdDropZone" style="padding:20px;border:2px dashed var(--muted);border-radius:10px;text-align:center">Solte o CRD aqui ou <input id="crdCentralFile" type="file" accept=".pdf,application/pdf"></div><div id="crdCentralReview" style="margin-top:16px;max-height:45vh;overflow:auto"></div></div><div class="dialog-foot"><button type="button" class="secondary" id="cancelCRDCentral">Cancelar</button><button type="button" class="primary" id="confirmCRDCentral" disabled>Confirmar distribuição</button></div></div></div>
+<div class="modal" id="crdCentralModal"><div class="dialog" style="max-width:1100px;width:94vw"><div class="dialog-head"><h3>Importar CRD — selecionar medições desta tarefa</h3><button type="button" class="icon-btn" id="closeCRDCentral">✕</button></div><div class="dialog-body"><p>Arraste um PDF de CRD ou selecione o arquivo. Selecione somente os lançamentos da tarefa aberta. Confira os campos no PDF original. Nenhum lançamento é salvo antes da confirmação.</p><div id="crdDropZone" style="padding:20px;border:2px dashed var(--muted);border-radius:10px;text-align:center">Solte o CRD aqui ou <input id="crdCentralFile" type="file" accept=".pdf,application/pdf"></div><div class="crd-review-layout"><iframe id="crdOriginalPreview" title="PDF original para conferência"></iframe><div id="crdCentralReview"></div></div><h4>Documentos de origem e histórico</h4><div id="crdCentralSources"></div></div><div class="dialog-foot"><button type="button" class="secondary" id="cancelCRDCentral">Cancelar</button><button type="button" class="primary" id="confirmCRDCentral" disabled>Confirmar seleção</button></div></div></div>
 <div class="modal" id="taskModal"><div class="dialog"><div class="dialog-head"><h3 id="taskModalTitle">Tarefa</h3><div class="dialog-head-actions"><button type="button" class="icon-btn ccge-expand-btn" id="taskExpandBtn" title="Expandir janela" aria-label="Expandir janela" onclick="return window.ccgeToggleTaskExpand(this,event)">↗</button><button class="icon-btn" data-close>✕</button></div></div><div class="dialog-body"><div class="form-grid" id="taskForm"></div><div class="tabs"><button class="active" data-tab="general">Geral</button><button data-tab="management">Gestão</button><button data-tab="costs">Medições / Custos Reais</button><button data-tab="payments">Pagamentos</button><button data-tab="additives">Aditivos</button><button class="project-only" data-tab="projectFinance">Entregáveis</button><button data-tab="documents">Arquivos e documentos</button><button data-tab="images">Imagens da evolução</button><button data-tab="videos">Vídeos</button><button data-tab="history">Histórico</button></div><div class="tab-content active" id="tab-general"><div class="field full"><label>Observações</label><textarea id="taskNotes"></textarea></div><div class="form-grid">
 <div class="field"><label>Mapa de equalização / orçamento</label><input id="taskMap" placeholder="Nome, número ou referência do documento"></div>
 <div class="field"><label>Data aprovação Mapa de Equalização</label><input id="taskMapApprovalDate" type="date" min="1900-01-01" max="2100-12-31"><small style="color:var(--muted)">Data da aprovação formal do mapa.</small></div>
@@ -883,7 +897,7 @@ async function carregarEstadoNuvem() {
 <div class="tab-content" id="tab-costs">
  <div class="financial-grid" id="taskCostSummary" style="margin-bottom:16px"></div>
  <div class="card" style="margin-bottom:14px"><div class="section-title"><div><h3>Mapa de Equalização — estimativa aprovada</h3><small>O ME é referência estimada; não é convertido automaticamente em contrato ou aditivo.</small></div></div><div class="form-grid"><div class="field"><label>Referência do ME</label><input id="costMapRef" disabled></div><div class="field"><label>Data de aprovação</label><input id="costMapDate" disabled></div><div class="field"><label>Valor estimado</label><input id="costEstimated" disabled></div></div></div>
- <div class="subsection-head"><div><h4>Medições / Custos Reais</h4><small>Cada medição/NF ativa compõe o custo real executado. Registros cancelados permanecem rastreáveis e saem do cálculo.</small></div><button class="secondary" type="button" id="addInvoice">+ Nova medição</button></div>
+ <div class="subsection-head"><div><h4>Medições / Custos Reais</h4><small>Cada medição/NF ativa compõe o custo real executado. Registros cancelados permanecem rastreáveis e saem do cálculo.</small></div><button type="button" class="secondary" onclick="ccgeOpenTaskCRD()">Importar CRD</button><button class="secondary" type="button" id="addInvoice">+ Nova medição</button></div>
  <div id="invoiceList" class="invoice-cost-list"></div>
  <div class="toolbar"><b id="invoiceIncurredTotal">Custo real executado: R$ 0,00</b><span class="spacer"></span><small style="color:var(--muted)">O custo real nasce das medições/NFs; o desembolso permanece separado em Pagamentos.</small></div>
 </div>
@@ -1169,7 +1183,7 @@ window.inlineCustom=(id,k,v)=>{let t=state.tasks.find(x=>x.id===id);if(!t)return
 window.addEventListener('pageshow',()=>{window.scrollTo(0,0);document.documentElement.scrollTop=0;document.body.scrollTop=0;const appMain=document.querySelector('.main');if(appMain)appMain.scrollTop=0});
 function forceTop(){window.scrollTo(0,0);document.documentElement.scrollTop=0;document.body.scrollTop=0;const m=document.querySelector('.main');if(m)m.scrollTop=0;}
 function nav(page){if(page==='reports'){const ids=['reportPhase','reportSupplier','reportStatus','reportDateFrom','reportDateTo'];ids.forEach(id=>{const e=$('#'+id);if(e)e.value=''});const rt=$('#reportType');if(rt)rt.selectedIndex=0;}$$('.page').forEach(x=>x.classList.remove('active'));$('#page-'+page).classList.add('active');$$('#nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===page));renderAll();if(page==='reports')renderReportBuilder(true);requestAnimationFrame(()=>requestAnimationFrame(forceTop))}
-$$('#nav button').forEach(b=>b.onclick=()=>nav(b.dataset.page));$$('[data-goto]').forEach(b=>b.onclick=()=>nav(b.dataset.goto));
+$$('#nav button[data-page]').forEach(b=>b.onclick=()=>nav(b.dataset.page));$$('[data-goto]').forEach(b=>b.onclick=()=>nav(b.dataset.goto));
 
 /* Motor financeiro canônico v1.58
    Fonte da verdade: ME aprovado (estimated) e contrato (contracted) são bases independentes.
@@ -1289,7 +1303,7 @@ function chartValue(t,key){
 }
 function chartMeta(metric){if(['progress','planned-real','variance','additive-ratio'].includes(metric))return {x:'Tarefas / agrupamento selecionado',y:'Percentual (%)',format:v=>v.toFixed(0)+'%'};if(['schedule','delay'].includes(metric))return {x:'Tarefas / agrupamento selecionado',y:'Prazo (dias)',format:v=>String(Math.round(v))};if(['status','priority-dist','blocked-dist'].includes(metric))return {x:'Tarefas / agrupamento selecionado',y:'Quantidade de registros',format:v=>String(Math.round(v))};if(String(metric).startsWith('custom:')){const f=(state.customFields||[]).find(x=>x.id===metric.slice(7));return {x:'Tarefas / agrupamento selecionado',y:f?.type==='money'?'Valor (R$)':f?.name||'Valor',format:v=>f?.type==='money'?brl(v):String(Number(v).toLocaleString('pt-BR'))}}return {x:'Tarefas / agrupamento selecionado',y:'Valor (R$)',format:v=>brl(v)}}
 function chartSets(metric){
- if(metric==='cashflow')return [['Compromissos previstos','real']];if(metric==='progress')return [['Execução atual','real']];if(metric==='planned-real')return [['Planejado','planned'],['Realizado','real']];if(metric==='variance')return [['Desvio realizado − planejado','variance']];if(metric==='contract-position')return [['Custo estimado atualizado','updated'],['Pago','paid'],['Saldo','balance']];if(metric==='cost')return [['Orçamento','estimated'],['Custo estimado','contracted']];if(metric==='approved-contracted')return [['Orçamento','estimated'],['Custo estimado','contracted']];if(metric==='updated')return [['Orçamento','estimated'],['Custo estimado atualizado','updated']];if(metric==='paid')return [['Custo estimado atualizado','updated'],['Pago','paid']];if(metric==='balance')return [['Saldo da estimativa','balance']];if(metric==='additives')return [['Custo estimado inicial','contracted'],['Aditivos estimados','additives']];if(metric==='additive-ratio')return [['Aditivos / contrato','additiveRatio']];if(metric==='invoiced-paid')return [['Incorrido','invoiced'],['Pago','paid']];if(metric==='schedule')return [['Dias restantes (+) / atraso (-)','days']];if(metric==='delay')return [['Dias de atraso','delay']];if(metric==='status')return [['Planejada','plannedStatus'],['Em andamento','progressStatus'],['Atenção','attentionStatus'],['Concluída','doneStatus']];if(metric==='priority-dist')return [['Crítica','prioCritical'],['Alta','prioHigh'],['Normal','prioNormal'],['Baixa','prioLow']];if(metric==='blocked-dist')return [['Bloqueadas','blockedYes'],['Não bloqueadas','blockedNo']];if(String(metric).startsWith('custom:'))return [[(state.customFields||[]).find(x=>x.id===metric.slice(7))?.name||'Campo personalizado',metric]];return [['Orçamento','estimated'],['Custo estimado','contracted']]
+ if(metric==='cashflow')return [['Compromissos previstos','real']];if(metric==='progress')return [['Execução atual','real']];if(metric==='planned-real')return [['Planejado','planned'],['Realizado','real']];if(metric==='variance')return [['Desvio realizado − planejado','variance']];if(metric==='contract-position')return [['Contratado atualizado','updated'],['Pago','paid'],['Saldo','balance']];if(metric==='cost')return [['Orçamento','estimated'],['Contratado','contracted']];if(metric==='approved-contracted')return [['Orçamento','estimated'],['Contratado','contracted']];if(metric==='updated')return [['Orçamento','estimated'],['Contratado atualizado','updated']];if(metric==='paid')return [['Contratado atualizado','updated'],['Pago','paid']];if(metric==='balance')return [['Saldo da estimativa','balance']];if(metric==='additives')return [['Contrato inicial','contracted'],['Aditivos','additives']];if(metric==='additive-ratio')return [['Aditivos / contrato','additiveRatio']];if(metric==='invoiced-paid')return [['Incorrido','invoiced'],['Pago','paid']];if(metric==='schedule')return [['Dias restantes (+) / atraso (-)','days']];if(metric==='delay')return [['Dias de atraso','delay']];if(metric==='status')return [['Planejada','plannedStatus'],['Em andamento','progressStatus'],['Atenção','attentionStatus'],['Concluída','doneStatus']];if(metric==='priority-dist')return [['Crítica','prioCritical'],['Alta','prioHigh'],['Normal','prioNormal'],['Baixa','prioLow']];if(metric==='blocked-dist')return [['Bloqueadas','blockedYes'],['Não bloqueadas','blockedNo']];if(String(metric).startsWith('custom:'))return [[(state.customFields||[]).find(x=>x.id===metric.slice(7))?.name||'Campo personalizado',metric]];return [['Orçamento','estimated'],['Contratado','contracted']]
 }
 function svgChart(el,tasks,metric='progress'){if(!tasks.length){el.innerHTML='<div class="empty">Selecione ou cadastre registros para gerar a análise.</div>';return []}const pairs=chartSets(metric),sets=pairs.map((x,i)=>({name:x[0],key:x[1],color:i%2?'#155da8':'#8dc4f2'})),labels=sets.map(x=>x.name),W=940,H=370,left=82,right=30,top=22,bottom=78,plotW=W-left-right,plotH=H-top-bottom,group=plotW/Math.max(tasks.length,1),values=tasks.flatMap(t=>sets.map(s=>chartValue(t,s.key))),min=Math.min(0,...values),max=Math.max(0,...values,1),span=Math.max(1,max-min),meta=chartMeta(metric);let bars='',texts='',grid='',ticks='';
  for(let i=0;i<=4;i++){let value=min+span*i/4,y=top+plotH-(plotH*i/4);grid+=`<line x1="${left}" y1="${y}" x2="${W-right}" y2="${y}" stroke="#e5edf5"/>`;ticks+=`<text x="${left-10}" y="${y+4}" text-anchor="end" font-size="10" fill="#65758a">${esc(meta.format(value))}</text>`}const zeroY=top+plotH-(0-min)/span*plotH;
@@ -1392,7 +1406,7 @@ window.restorePhase=id=>{const f=state.phases.find(x=>x.id===id);if(!f)return;f.
 window.deletePhase=id=>{const linked=state.tasks.filter(t=>context(t).f.id===id);if(linked.length){if(!confirm(`Esta etapa possui ${linked.length} tarefa(s). Ao excluir a etapa, as tarefas serão preservadas como "Sem etapa vinculada". Continuar?`))return;linked.forEach(t=>{t.phaseId='';t.activityId=''});}else if(!confirm('Excluir definitivamente esta etapa? Esta ação não poderá ser desfeita.'))return;state.phases=state.phases.filter(f=>f.id!==id);save('Etapa excluída');renderAll()};
 window.archiveTask=id=>{const t=state.tasks.find(x=>x.id===id);if(!t)return;t.archived=true;state.selected=state.selected.filter(x=>x!==id);save('Tarefa arquivada');renderAll()};
 window.restoreTask=id=>{const t=state.tasks.find(x=>x.id===id);if(!t)return;t.archived=false;save('Tarefa restaurada');renderAll()};
-window.deleteTask=async id=>{const t=state.tasks.find(x=>x.id===id);if(!t)return;if(!confirm(`Excluir definitivamente a tarefa "${taskDisplayName(t)}"? Esta ação não poderá ser desfeita.`))return;const files=[...(t.mapFiles||[]),...(t.documents||[]),...(t.videos||[]),...(t.photos||[]),...(t.additiveRecords||[]).flatMap(a=>a.files||[]),...(t.invoices||[]).map(i=>i.attachment).filter(Boolean)];const next={...state,tasks:state.tasks.filter(x=>x.id!==id),selected:state.selected.filter(x=>x!==id),history:[{date:new Date().toISOString(),text:'Tarefa excluída'},...(state.history||[])].slice(0,40)};const ok=await salvarEstadoNuvem({...next,selected:[]});if(!ok){toast('Exclusão não confirmada no Supabase. A tarefa e seus arquivos foram preservados.');return}state=next;safeStore.set(JSON.stringify(persistentStateSnapshot()));recomputeDerivedState();renderAll();toast('Tarefa excluída');const unique=new Map();for(const f of files){if(f?.storagePath)unique.set((f.storageBucket||CCGE_STORAGE_BUCKET)+'/'+f.storagePath,f)}const retainedPaths=new Set();for(const remaining of state.tasks){const refs=[...(remaining.mapFiles||[]),...(remaining.documents||[]),...(remaining.videos||[]),...(remaining.photos||[]),...(remaining.additiveRecords||[]).flatMap(a=>a.files||[]),...(remaining.invoices||[]).map(i=>i.attachment).filter(Boolean)];for(const f of refs)if(f?.storagePath)retainedPaths.add((f.storageBucket||CCGE_STORAGE_BUCKET)+'/'+f.storagePath)}const safeFiles=[...unique.entries()].filter(([key])=>!retainedPaths.has(key)).map(([,f])=>f);const settled=await Promise.allSettled(safeFiles.map(deleteCCGEAttachment));if(settled.some(x=>x.status==='rejected'))toast('Tarefa excluída, mas alguns arquivos exigem limpeza no armazenamento.')};
+window.deleteTask=async id=>{const t=state.tasks.find(x=>x.id===id);if(!t)return;if(!confirm(`Excluir definitivamente a tarefa "${taskDisplayName(t)}"? Esta ação não poderá ser desfeita.`))return;const files=[...(t.mapFiles||[]),...(t.documents||[]),...(t.videos||[]),...(t.photos||[]),...(t.additiveRecords||[]).flatMap(a=>a.files||[]),...(t.invoices||[]).map(i=>i.attachment).filter(Boolean)];const next={...state,tasks:state.tasks.filter(x=>x.id!==id),selected:state.selected.filter(x=>x!==id),history:[{date:new Date().toISOString(),text:'Tarefa excluída'},...(state.history||[])].slice(0,40)};const ok=await salvarEstadoNuvem({...next,selected:[]});if(!ok){toast('Exclusão não confirmada no Supabase. A tarefa e seus arquivos foram preservados.');return}state=next;safeStore.set(JSON.stringify(persistentStateSnapshot()));recomputeDerivedState();renderAll();toast('Tarefa excluída');const unique=new Map();for(const f of files){if(f?.storagePath)unique.set((f.storageBucket||CCGE_STORAGE_BUCKET)+'/'+f.storagePath,f)}const retainedPaths=new Set();for(const remaining of state.tasks){const refs=[...(remaining.mapFiles||[]),...(remaining.documents||[]),...(remaining.videos||[]),...(remaining.photos||[]),...(remaining.additiveRecords||[]).flatMap(a=>a.files||[]),...(remaining.invoices||[]).map(i=>i.attachment).filter(Boolean)];for(const f of refs)if(f?.storagePath)retainedPaths.add((f.storageBucket||CCGE_STORAGE_BUCKET)+'/'+f.storagePath)}const safeFiles=[...unique.entries()].filter(([key,f])=>!retainedPaths.has(key)&&!ccgeAttachmentStillReferenced(f,state)).map(([,f])=>f);const settled=await Promise.allSettled(safeFiles.map(deleteCCGEAttachment));if(settled.some(x=>x.status==='rejected'))toast('Tarefa excluída, mas alguns arquivos exigem limpeza no armazenamento.')};
 window.openNewTaskForPhase=id=>openTask(null,null,'Obra',id);
 
 function openTask(id,activityId,forcedNature,forcedPhaseId){
@@ -1678,6 +1692,9 @@ function renderInvoices(t){
  </div>
  <div class="invoice-grid invoice-grid-main">
   <div class="field invoice-span-2"><label>Fornecedor</label><input value="${esc(x.supplier||'')}" oninput="editInvoice(${i},'supplier',this.value)"></div>
+  <div class="field"><label>CNPJ do fornecedor</label><input value="${esc(x.supplierTaxId||'')}" oninput="editInvoice(${i},'supplierTaxId',this.value)"></div>
+  <div class="field"><label>Tipo no CRD</label><input value="${esc(x.documentType||'')}" oninput="editInvoice(${i},'documentType',this.value)"></div>
+  ${x._crdNumber?`<div class="field"><label>CRD de origem</label><input readonly value="${esc(x._crdNumber)}"></div>`:''}
   <div class="field"><label>NF / Documento</label><input value="${esc(x.number||'')}" oninput="editInvoice(${i},'number',this.value)"></div>
   ${invoiceDateField(i,'issueDate','Data da NF',x.issueDate)}
   ${invoiceDateField(i,'dueDate','Vencimento',x.dueDate)}
@@ -1689,7 +1706,7 @@ function renderInvoices(t){
  </div></section>`).join(''):'<div class="empty" style="padding:14px">Nenhuma medição ou despesa real cadastrada.</div>';
  renderTaskCostSummary(t)
 }
-window.editInvoice=(i,k,v)=>{let t=modalTask();t.invoices=t.invoices||[];if(!t.invoices[i])return;t._invoiceLedgerActive=true;t.invoices[i][k]=k==='amount'?parseMoney(v):v;$('#taskModal').dataset.temp=JSON.stringify(t);renderTaskCostSummary(t)};
+window.editInvoice=(i,k,v)=>{let t=modalTask();t.invoices=t.invoices||[];if(!t.invoices[i])return;t._invoiceLedgerActive=true;const invoice=t.invoices[i],value=k==='amount'?parseMoney(v):v;if(invoice._crdNumber&&invoice[k]!==value){invoice.auditHistory=[...(invoice.auditHistory||[]),{action:'measurement-edited',userId:window.ccgeAuditActor||null,at:new Date().toISOString(),field:k,before:invoice[k]??null,after:value,originalDescription:invoice._originalDescription||invoice.description||'',selectedTaskId:t.id}];}invoice[k]=value;$('#taskModal').dataset.temp=JSON.stringify(t);renderTaskCostSummary(t)};
 function ccgeSameAttachment(a,b){if(!a||!b)return false;const ka=a.storagePath||a.url||a.name,kb=b.storagePath||b.url||b.name;return !!ka&&ka===kb}
 function ccgeQueueInvoiceAttachmentDelete(t,index){const f=t?.invoices?.[index]?.attachment;if(!f)return;const shared=(t.invoices||[]).some((x,n)=>n!==index&&ccgeSameAttachment(x?.attachment,f));if(!shared)queueTaskAttachmentDelete(f)}
 window.ccgeDeleteInvoiceDirect=function(btn,event){try{event?.preventDefault?.();event?.stopPropagation?.();const modal=document.getElementById('taskModal');if(!modal?.dataset.temp)return false;const t=JSON.parse(modal.dataset.temp);t.invoices=Array.isArray(t.invoices)?t.invoices:[];const id=String(btn?.dataset?.invoiceId||'');if(!id){toast('Medição sem identificador. Reabra a tarefa antes de excluir.');return false}const i=t.invoices.findIndex(x=>String(x?.id||'')===id);if(i<0){toast('Não foi possível localizar esta medição específica. Nada foi excluído.');return false}const inv=t.invoices[i];if(inv?.attachment)ccgeQueueInvoiceAttachmentDelete(t,i);t.invoices.splice(i,1);t._invoiceLedgerActive=true;modal.dataset.temp=JSON.stringify(t);renderInvoices(t);toast('Somente a medição selecionada foi removida. Salve para confirmar.');return false}catch(e){console.error(e);toast('Falha ao excluir a medição. Nenhum outro registro foi alterado.');return false}};
@@ -1709,7 +1726,7 @@ window.editInvoiceDateBR=(i,key,val)=>{
 };
 window.openInvoiceDatePicker=(i,key,btn)=>{const input=btn?.parentElement?.querySelector('.ccge-hidden-date');if(!input)return;try{input.showPicker()}catch(e){input.click()}};
 window.pickInvoiceDate=(i,key,input)=>editInvoice(i,key,input.value||'');
-function validateInvoicesForSave(t){const rows=t?.invoices||[];for(let i=0;i<rows.length;i++){const x=rows[i]||{};if(Number(x.amount||0)<0)return `O valor real da medição ${String(i+1).padStart(2,'0')} não pode ser negativo.`}return ''}
+function validateInvoicesForSave(t){const identityError=window.ccgeValidateCRDEdit?.(t);if(identityError)return identityError;const rows=t?.invoices||[];for(let i=0;i<rows.length;i++){const x=rows[i]||{};if(Number(x.amount||0)<0)return `O valor real da medição ${String(i+1).padStart(2,'0')} não pode ser negativo.`}return ''}
 $('#addInvoice').onclick=()=>{let t=modalTask();t.invoices=t.invoices||[];t._invoiceLedgerActive=true;t.invoices.push({id:uid('inv'),competence:'',measurement:'',issueDate:'',supplier:'',number:'',description:'',amount:0,dueDate:'',situation:'',attachment:null});$('#taskModal').dataset.temp=JSON.stringify(t);renderInvoices(t)};
 window.attachInvoiceFile=async(i,explicitFile)=>{const input=$(`#invoiceFile_${i}`),file=explicitFile||input?.files?.[0];if(!file)return false;const t0=modalTask(),invoiceId=t0.invoices?.[i]?.id,taskId=t0.id,session=$('#taskModal').dataset.invoiceSession;if(!invoiceId)throw new Error('Medição não localizada para anexar o arquivo.');const uploaded=await uploadCCGEFile(file,`tarefas/${editingId||'nova'}/notas-fiscais`);uploaded._pendingUpload=true;let t=modalTask(),j=(t.invoices||[]).findIndex(x=>x.id===invoiceId);if(j<0||t.id!==taskId||$('#taskModal').dataset.invoiceSession!==session){await deleteCCGEAttachment(uploaded);throw new Error('A tarefa foi fechada ou alterada durante o upload. O arquivo temporário foi removido.')}t.invoices[j].attachment=uploaded;$('#taskModal').dataset.temp=JSON.stringify(t);renderInvoices(t);window.ccgeNotify('Arquivo anexado. Salve a tarefa para confirmar.');return true};
 window.ccgeBaseAttachInvoiceFile=window.attachInvoiceFile;
@@ -1836,13 +1853,13 @@ async function submitPhotos(){
 $('#addPhotos').onclick=submitPhotos;
 $('#photoInput').addEventListener('change',submitPhotos);
 function renderTaskHistory(t){$('#taskHistory').innerHTML=(t.history||[]).length?t.history.map(h=>`<div class="attention-item"><i class="dot blue"></i><div><b>${esc(h.text)}</b><small>${new Date(h.date).toLocaleString('pt-BR')}</small></div></div>`).join(''):'<div class="empty">Sem histórico nesta tarefa.</div>'}
-$('#saveTaskModal').onclick=async()=>{if(window.ccgeInvoiceUploadActive){toast('Aguarde a conclusão da leitura e do envio do documento antes de salvar.');return;}const __invoiceError=validateInvoicesForSave(modalTask());if(__invoiceError){toast(__invoiceError);return;}const saveBtn=$('#saveTaskModal');const originalLabel='Salvar alterações';if(!validateCCGEDatesIn($('#taskModal')))return;saveBtn.disabled=true;saveBtn.classList.add('save-working');saveBtn.textContent='⟳ Salvando...';const dialog=$('#taskModal .dialog');const scrollTop=dialog?dialog.scrollTop:0;const activeTab=$('.tabs button.active')?.dataset.tab||'general';let t=normalizeTaskName(modalTask());let old=editingId&&state.tasks.find(x=>x.id===editingId);let temp=JSON.parse($('#taskModal').dataset.temp);t.executionHistory=Array.isArray(old?.executionHistory)?[...old.executionHistory]:Array.isArray(t.executionHistory)?[...t.executionHistory]:[];if(!old||((old.real??null)!==(t.real??null))){t.executionHistory.unshift({date:new Date().toISOString(),percent:t.real===null?null:Number(t.real)});t.executionHistory=t.executionHistory.slice(0,200)};t.photos=temp.photos||[];t.mapFiles=temp.mapFiles||[];t.documents=temp.documents||[];t.videos=temp.videos||[];t.invoices=temp.invoices||[];t.deliverables=temp.deliverables||[];t.payments=temp.payments||[];t.milestones=temp.milestones||[];t.additiveRecords=temp.additiveRecords||[];t=cleanTaskAttachmentMeta(t);t.additives=additiveTotal(t);t.approvedOverride=false;t.paid=(t.payments||[]).reduce((sum,p)=>sum+Number(p.paidAmount||0),0);t.invoiced=(t.invoices||[]).filter(i=>(i.situation||'Ativa')!=='Cancelada').reduce((sum,i)=>sum+Number(i.amount||0),0);t.history=[{date:new Date().toISOString(),text:old?'Informações da tarefa atualizadas':'Tarefa criada'},...(old?.history||[])];const msg=old?`Tarefa atualizada: ${taskDisplayName(t)}`:`Nova tarefa: ${taskDisplayName(t)}`;const next={...state,tasks:old?state.tasks.map(x=>x.id===old.id?t:x):[...state.tasks,t],history:[{date:new Date().toISOString(),text:msg},...(state.history||[])].slice(0,40)};const snapshot={...next,selected:[]};const cloudOk=await salvarEstadoNuvem(snapshot);if(cloudOk){state=next;if(!old)editingId=t.id;$('#taskModal').dataset.temp=JSON.stringify(t);recomputeDerivedState();safeStore.set(JSON.stringify(persistentStateSnapshot()));const pendingDeletes=taskPendingDeletes();const livePaths=new Set();for(const task of state.tasks){const refs=[...(task.mapFiles||[]),...(task.documents||[]),...(task.videos||[]),...(task.photos||[]),...(task.additiveRecords||[]).flatMap(a=>a.files||[]),...(task.invoices||[]).map(i=>i.attachment).filter(Boolean)];for(const f of refs)if(f?.storagePath)livePaths.add((f.storageBucket||CCGE_STORAGE_BUCKET)+'/'+f.storagePath)}const failedDeletes=[];for(const f of pendingDeletes){if(f?.storagePath&&livePaths.has((f.storageBucket||CCGE_STORAGE_BUCKET)+'/'+f.storagePath))continue;try{await deleteCCGEAttachment(f)}catch(e){console.warn('Falha ao limpar anexo removido',e);failedDeletes.push(f)}}$('#taskModal').dataset.pendingDeletes=JSON.stringify(failedDeletes);if(failedDeletes.length)window.ccgeNotify(`${failedDeletes.length} arquivo(s) não foram removidos do armazenamento. A exclusão será tentada novamente ao salvar esta tarefa.`);const execBox=$('#taskExecutionBox');if(execBox){execBox.dataset.baselineStatus=t.status;execBox.dataset.baselinePct=t.real===null?'':String(Number(t.real));if(window.syncTaskExecutionUI)window.syncTaskExecutionUI()}saveBtn.classList.remove('save-working');saveBtn.classList.add('save-success');saveBtn.textContent='✓ Alterações salvas';$$('#taskModal input.money-input,#taskModal input[data-money="true"]').forEach(formatMoneyField);toast('Alterações salvas');scheduleReactiveRender();setTimeout(()=>{saveBtn.disabled=false;saveBtn.classList.remove('save-success');saveBtn.textContent=originalLabel},1300)}else{saveBtn.disabled=false;saveBtn.classList.remove('save-working','save-success');saveBtn.textContent='Erro ao salvar — tentar novamente';toast('Erro ao salvar no Supabase. Tente novamente.')}requestAnimationFrame(()=>{const tab=$(`.tabs button[data-tab="${activeTab}"]`);if(tab&&!tab.classList.contains('active'))tab.click();if(dialog)dialog.scrollTop=scrollTop})};
+$('#saveTaskModal').onclick=async()=>{if(window.ccgeInvoiceUploadActive){toast('Aguarde a conclusão da leitura e do envio do documento antes de salvar.');return;}const __invoiceError=validateInvoicesForSave(modalTask());if(__invoiceError){toast(__invoiceError);return;}const saveBtn=$('#saveTaskModal');const originalLabel='Salvar alterações';if(!validateCCGEDatesIn($('#taskModal')))return;saveBtn.disabled=true;saveBtn.classList.add('save-working');saveBtn.textContent='⟳ Salvando...';const dialog=$('#taskModal .dialog');const scrollTop=dialog?dialog.scrollTop:0;const activeTab=$('.tabs button.active')?.dataset.tab||'general';let t=normalizeTaskName(modalTask());let old=editingId&&state.tasks.find(x=>x.id===editingId);let temp=JSON.parse($('#taskModal').dataset.temp);t.executionHistory=Array.isArray(old?.executionHistory)?[...old.executionHistory]:Array.isArray(t.executionHistory)?[...t.executionHistory]:[];if(!old||((old.real??null)!==(t.real??null))){t.executionHistory.unshift({date:new Date().toISOString(),percent:t.real===null?null:Number(t.real)});t.executionHistory=t.executionHistory.slice(0,200)};t.photos=temp.photos||[];t.mapFiles=temp.mapFiles||[];t.documents=temp.documents||[];t.videos=temp.videos||[];t.invoices=temp.invoices||[];t.deliverables=temp.deliverables||[];t.payments=temp.payments||[];t.milestones=temp.milestones||[];t.additiveRecords=temp.additiveRecords||[];t=cleanTaskAttachmentMeta(t);t.additives=additiveTotal(t);t.approvedOverride=false;t.paid=(t.payments||[]).reduce((sum,p)=>sum+Number(p.paidAmount||0),0);t.invoiced=(t.invoices||[]).filter(i=>(i.situation||'Ativa')!=='Cancelada').reduce((sum,i)=>sum+Number(i.amount||0),0);t.history=[{date:new Date().toISOString(),text:old?'Informações da tarefa atualizadas':'Tarefa criada'},...(old?.history||[])];const msg=old?`Tarefa atualizada: ${taskDisplayName(t)}`:`Nova tarefa: ${taskDisplayName(t)}`;const __crdSources=window.ccgeMergeCRDSources(state,t);delete t._pendingCRDSources;const next={...state,crdImports:__crdSources,tasks:old?state.tasks.map(x=>x.id===old.id?t:x):[...state.tasks,t],history:[{date:new Date().toISOString(),text:msg},...(state.history||[])].slice(0,40)};const snapshot={...next,selected:[]};const cloudOk=await salvarEstadoNuvem(snapshot);if(cloudOk){state=next;if(!old)editingId=t.id;$('#taskModal').dataset.temp=JSON.stringify(t);recomputeDerivedState();safeStore.set(JSON.stringify(persistentStateSnapshot()));const pendingDeletes=taskPendingDeletes();const livePaths=new Set((state.crdImports||[]).filter(x=>x.attachment?.storagePath).map(x=>(x.attachment.storageBucket||CCGE_STORAGE_BUCKET)+'/'+x.attachment.storagePath));for(const task of state.tasks){const refs=[...(task.mapFiles||[]),...(task.documents||[]),...(task.videos||[]),...(task.photos||[]),...(task.additiveRecords||[]).flatMap(a=>a.files||[]),...(task.invoices||[]).map(i=>i.attachment).filter(Boolean)];for(const f of refs)if(f?.storagePath)livePaths.add((f.storageBucket||CCGE_STORAGE_BUCKET)+'/'+f.storagePath)}const failedDeletes=[];for(const f of pendingDeletes){if(f?.storagePath&&livePaths.has((f.storageBucket||CCGE_STORAGE_BUCKET)+'/'+f.storagePath))continue;try{await deleteCCGEAttachment(f)}catch(e){console.warn('Falha ao limpar anexo removido',e);failedDeletes.push(f)}}$('#taskModal').dataset.pendingDeletes=JSON.stringify(failedDeletes);if(failedDeletes.length)window.ccgeNotify(`${failedDeletes.length} arquivo(s) não foram removidos do armazenamento. A exclusão será tentada novamente ao salvar esta tarefa.`);const execBox=$('#taskExecutionBox');if(execBox){execBox.dataset.baselineStatus=t.status;execBox.dataset.baselinePct=t.real===null?'':String(Number(t.real));if(window.syncTaskExecutionUI)window.syncTaskExecutionUI()}saveBtn.classList.remove('save-working');saveBtn.classList.add('save-success');saveBtn.textContent='✓ Alterações salvas';$$('#taskModal input.money-input,#taskModal input[data-money="true"]').forEach(formatMoneyField);toast('Alterações salvas');scheduleReactiveRender();setTimeout(()=>{saveBtn.disabled=false;saveBtn.classList.remove('save-success');saveBtn.textContent=originalLabel},1300)}else{saveBtn.disabled=false;saveBtn.classList.remove('save-working','save-success');saveBtn.textContent='Erro ao salvar — tentar novamente';toast('Erro ao salvar no Supabase. Tente novamente.')}requestAnimationFrame(()=>{const tab=$(`.tabs button[data-tab="${activeTab}"]`);if(tab&&!tab.classList.contains('active'))tab.click();if(dialog)dialog.scrollTop=scrollTop})};
 function closeModal(){
  const modal=$('#taskModal');if(!modal)return;
  modal.dataset.invoiceSession=String(Number(modal.dataset.invoiceSession||0)+1);
  // UX/safety: never hold the user inside the task modal while remote cleanup is pending.
- window.ccgeResetTaskWindow?.();modal.classList.remove('open');modal.dataset.pendingDeletes='[]';
- Promise.resolve(cleanupTaskPendingUploads()).catch(e=>console.warn('Falha na limpeza temporária da tarefa',e));
+ const cleanup=cleanupTaskPendingUploads();window.ccgeResetTaskWindow?.();modal.classList.remove('open');modal.dataset.pendingDeletes='[]';
+ Promise.resolve(cleanup).catch(e=>console.warn('Falha na limpeza temporária da tarefa',e));
 }
 $$('#taskModal [data-close]').forEach(b=>b.onclick=closeModal);
 $$('#taskModal .tabs button').forEach(b=>b.onclick=()=>{
@@ -1851,10 +1868,10 @@ $$('#taskModal .tabs button').forEach(b=>b.onclick=()=>{
  b.classList.add('active');const pane=$('#tab-'+b.dataset.tab);if(pane)pane.classList.add('active');
 });
 $('#taskModal').onclick=e=>{if(e.target===$('#taskModal'))closeModal()};
-function projectNextDue(t){let dates=(t.invoices||[]).filter(x=>x.status!=='Paga'&&x.dueDate).map(x=>x.dueDate).sort();return dates[0]||''}
+function projectNextDue(t){const dates=(t.payments||[]).filter(p=>p.dueDate&&ccgeMoneyNumber(p.amount)-ccgeMoneyNumber(p.paidAmount)>0.005).map(p=>p.dueDate).sort();return dates[0]||''}
 function renderProjects(){let q=($('#projectSearch').value||'').toLowerCase(),sf=$('#projectStatusFilter')?.value||'',cf=$('#projectCompanyFilter')?.value||'',df=$('#projectDeadlineFilter')?.value||'',today=new Date();let all=state.tasks.filter(t=>t.nature==='Projeto'&&!t.archived);let companies=[...new Set(all.map(t=>t.company).filter(Boolean))].sort(),cur=$('#projectCompanyFilter')?.value||'';if($('#projectCompanyFilter')){$('#projectCompanyFilter').innerHTML='<option value="">Todas as empresas</option>'+companies.map(x=>`<option ${cur===x?'selected':''}>${esc(x)}</option>`).join('')}
  let arr=all.filter(t=>{let due=t.revisedDelivery||t.endPlan||'',days=due?Math.ceil((new Date(due+'T23:59:59')-today)/86400000):99999;return (!q||[taskDisplayName(t),t.scope,t.description,t.company,t.discipline,t.internalOwner].join(' ').toLowerCase().includes(q))&&(!sf||t.status===sf)&&(!cf||t.company===cf)&&(!df||(df==='late'?days<0&&t.status!=='Concluída':days>=0&&days<=30))});
- const sum=k=>all.reduce((s,t)=>s+Number(t[k]||0),0),updated=sumFinancial(all,'contractUpdated'),late=all.filter(t=>{let d=t.revisedDelivery||t.endPlan;return d&&new Date(d)<today&&t.status!=='Concluída'}).length,pendingInvoices=all.flatMap(t=>t.invoices||[]).filter(x=>x.status!=='Paga').reduce((s,x)=>s+Number(x.amount||0),0);$('#projectMetrics').innerHTML=[['Projetos ativos',all.filter(t=>t.status!=='Concluída').length],['Valor aprovado',brl(sumApprovedWithAdditives(all))],['Custo estimado atualizado',brl(updated)],['NF/boletos pendentes',brl(pendingInvoices)],['Projetos atrasados',late]].map(x=>`<div class="card"><small>${x[0]}</small><strong>${x[1]}</strong></div>`).join('');$('#projectCount').textContent=`${arr.length} projeto(s)`;
+ const sum=k=>all.reduce((s,t)=>s+Number(t[k]||0),0),updated=sumFinancial(all,'contractUpdated'),late=all.filter(t=>{let d=t.revisedDelivery||t.endPlan;return d&&new Date(d)<today&&t.status!=='Concluída'}).length,pendingInvoices=sumFinancial(all,'payable');$('#projectMetrics').innerHTML=[['Projetos ativos',all.filter(t=>t.status!=='Concluída').length],['Valor aprovado',brl(sumApprovedWithAdditives(all))],['Contratado atualizado',brl(updated)],['Incorrido a pagar',brl(pendingInvoices)],['Projetos atrasados',late]].map(x=>`<div class="card"><small>${x[0]}</small><strong>${x[1]}</strong></div>`).join('');$('#projectCount').textContent=`${arr.length} projeto(s)`;
  $('#projectBody').innerHTML=arr.map(t=>{let ft=financialTruth(t),updated=ft.contractUpdated,invoiced=ft.invoiced,balance=ft.contractBalance,delivery=t.revisedDelivery||t.endPlan,nextDue=projectNextDue(t),late=delivery&&new Date(delivery)<today&&t.status!=='Concluída';return `<tr><td class="project-name-cell"><a class="entity-link" onclick="openTask('${t.id}')"><b>${esc(taskDisplayName(t))}</b></a><small>${esc(t.description||'Sem descrição')}</small></td><td>${esc(t.discipline||'—')}</td><td>${esc(t.scope||'—')}</td><td>${esc(t.custom?.cf_area||'—')}</td><td>${esc(t.company||'—')}</td><td>${esc(t.internalOwner||'—')}</td><td>${badge(t.status)}</td><td>${dateBR(t.contractDate)}</td><td class="${late?'deadline-late':'deadline-ok'}">${dateBR(t.endPlan)}</td><td class="${late?'deadline-late':''}">${dateBR(t.revisedDelivery)}</td><td>${t.estimated?brl(t.estimated):'—'}</td><td>${brl(ft.contracted)}</td><td>${brl(ft.additives)}</td><td><b>${brl(updated)}</b></td><td>${brl(invoiced)}</td><td>${brl(ft.paid)}</td><td>${dateBR(nextDue)}</td><td><b>${brl(balance)}</b></td><td><div class="object-actions"><button onclick="openTask('${t.id}')">Gerenciar</button><button onclick="analyzeOne('${t.id}')">Analisar</button><button class="remove" onclick="archiveTask('${t.id}')">Arquivar</button></div></td></tr>`}).join('')||'<tr><td colspan="19"><div class="empty">Nenhum projeto encontrado.</div></td></tr>'}
 
 let editingMonthlyId=null;
@@ -2083,7 +2100,7 @@ window.loadFinancialAnalysis=i=>{let a=state.financialAnalyses?.[i];if(!a)return
 function analysisBase(){let arr=commandTasks();if($('#chartScope')?.value==='selected')arr=arr.filter(t=>state.selected.includes(t.id));return arr}
 function groupAnalysis(arr,group){if(group==='task')return arr;const map={};arr.forEach(t=>{let c=context(t),key=group==='company'?(t.company||'Não informado'):group==='phase'?c.f.name:group==='priority'?(t.priority||'Normal'):t.status;(map[key]??=[]).push(t)});return Object.entries(map).map(([name,items])=>({id:'g_'+name,name,nature:items[0]?.nature||'',status:group==='status'?name:'',priority:group==='priority'?name:'Normal',blocked:items.some(t=>t.blocked),planned:items.reduce((s,t)=>s+Number(t.planned||0),0)/items.length,real:items.reduce((s,t)=>s+Number(t.real||0),0)/items.length,estimated:items.reduce((s,t)=>s+Number(t.estimated||0),0),approved:items.reduce((s,t)=>s+financialTruth(t).contracted,0),approvedOverride:false,contracted:items.reduce((s,t)=>s+financialTruth(t).contracted,0),additives:items.reduce((s,t)=>s+financialTruth(t).additives,0),paid:items.reduce((s,t)=>s+financialTruth(t).paid,0),invoiced:items.reduce((s,t)=>s+financialTruth(t).invoiced,0),endPlan:items.map(t=>taskEffectiveDue(t)).filter(Boolean).sort().pop(),custom:Object.fromEntries((state.customFields||[]).map(f=>[f.id,items.reduce((a,t)=>a+chartValue(t,'custom:'+f.id),0)])),_items:items,_count:items.length}))}
 function metricForChart(metric){return metric}
-function renderIntel(arr){const sum=k=>arr.reduce((s,t)=>s+Number(t[k]||0),0),updated=sumFinancial(arr,'contractUpdated'),paid=sumFinancial(arr,'paid'),late=arr.filter(t=>{const d=daysToDue(t);return d!==null&&d<0&&t.status!=='Concluída'}).length,attention=arr.filter(t=>t.status==='Atenção').length,blocked=arr.filter(t=>t.blocked).length,critical=arr.filter(t=>t.priority==='Crítica').length;const cards=[['Registros analisados',arr.length,'Base da leitura atual'],['Custo estimado atualizado',brl(updated),'ME + aditivos estimados'],['Custo real / Incorrido',brl(sumFinancial(arr,'invoiced')),'Soma das medições/NFs ativas'],['Pago',brl(paid),'Pagamentos efetivamente realizados']];$('#intelMetrics').innerHTML=cards.map(x=>`<div class="card metric"><small>${x[0]}</small><strong>${x[1]}</strong><span>${x[2]}</span></div>`).join('');let insights=[];if(!arr.length)insights.push(['blue','Selecione registros','Use as caixas no final de cada tarefa ou projeto.']);else{const contractInitial=sumFinancial(arr,'contracted'),addRatio=contractInitial?sumFinancial(arr,'additives')/contractInitial*100:0,payRatio=updated?paid/updated*100:0,works=arr.filter(t=>t.nature!=='Projeto'),avgReal=works.length?works.reduce((s,t)=>s+Number(t.real||0),0)/works.length:0,avgPlanned=works.length?works.reduce((s,t)=>s+Number(t.planned||0),0)/works.length:0;late&&insights.push(['red',`${late} registro(s) com prazo vencido`,'O gráfico de prazo mostra atraso como valor negativo.']);blocked&&insights.push(['red',`${blocked} registro(s) bloqueado(s)`,'Revise dependências, responsáveis e próxima ação.']);critical&&insights.push(['red',`${critical} prioridade(s) crítica(s)`,'Exigem tratamento executivo.']);attention&&insights.push(['amber',`${attention} registro(s) em atenção`,'Exigem decisão ou plano de recuperação.']);addRatio>10&&insights.push(['amber',`Aditivos estimados equivalem a ${addRatio.toFixed(1)}% da estimativa-base`,'Concentração de alterações merece revisão de causa e escopo.']);payRatio>80&&insights.push(['blue',`${payRatio.toFixed(1)}% da estimativa atualizada já foi pago`,'Confirme entregas e aceite antes do saldo final.']);if(works.length)insights.push([avgReal+10<avgPlanned?'amber':'blue',`Planejado ${avgPlanned.toFixed(1)}% x realizado ${avgReal.toFixed(1)}%`,`Desvio ${(avgReal-avgPlanned)>=0?'+':''}${(avgReal-avgPlanned).toFixed(1)} p.p.`]);if(!insights.length)insights.push(['green','Sem desvio crítico evidente','Acompanhe prazos, custos e pendências periodicamente.'])}$('#executiveInsights').innerHTML=insights.map(([c,b,sm])=>`<div class="attention-item insight-${c==='red'?'risk':c==='amber'?'warn':c==='green'?'good':''}"><i class="dot ${c==='green'?'blue':c}"></i><div><b>${b}</b><small>${sm}</small></div></div>`).join('');$('#analysisItems').innerHTML=arr.length?arr.map(t=>{let c=context(t);return `<div class="attention-item analysis-item"><div><b>${esc(taskDisplayName(t))}</b><small>${esc(t.nature)} · ${esc(c.f.name)} · ${esc(t.company||'Sem empresa')} · ${esc(t.priority||'Normal')}${t.blocked?' · BLOQUEADA':''}</small></div><button class="secondary" onclick="openTask('${t.id}')">Abrir</button></div>`}).join(''):'<div class="empty">Nenhum registro incluído.</div>'}
+function renderIntel(arr){const sum=k=>arr.reduce((s,t)=>s+Number(t[k]||0),0),updated=sumFinancial(arr,'contractUpdated'),paid=sumFinancial(arr,'paid'),late=arr.filter(t=>{const d=daysToDue(t);return d!==null&&d<0&&t.status!=='Concluída'}).length,attention=arr.filter(t=>t.status==='Atenção').length,blocked=arr.filter(t=>t.blocked).length,critical=arr.filter(t=>t.priority==='Crítica').length;const cards=[['Registros analisados',arr.length,'Base da leitura atual'],['Contratado atualizado',brl(updated),'Contrato inicial + aditivos'],['Custo real / Incorrido',brl(sumFinancial(arr,'invoiced')),'Soma das medições/NFs ativas'],['Pago',brl(paid),'Pagamentos efetivamente realizados']];$('#intelMetrics').innerHTML=cards.map(x=>`<div class="card metric"><small>${x[0]}</small><strong>${x[1]}</strong><span>${x[2]}</span></div>`).join('');let insights=[];if(!arr.length)insights.push(['blue','Selecione registros','Use as caixas no final de cada tarefa ou projeto.']);else{const contractInitial=sumFinancial(arr,'contracted'),addRatio=contractInitial?sumFinancial(arr,'additives')/contractInitial*100:0,payRatio=updated?paid/updated*100:0,works=arr.filter(t=>t.nature!=='Projeto'),avgReal=works.length?works.reduce((s,t)=>s+Number(t.real||0),0)/works.length:0,avgPlanned=works.length?works.reduce((s,t)=>s+Number(t.planned||0),0)/works.length:0;late&&insights.push(['red',`${late} registro(s) com prazo vencido`,'O gráfico de prazo mostra atraso como valor negativo.']);blocked&&insights.push(['red',`${blocked} registro(s) bloqueado(s)`,'Revise dependências, responsáveis e próxima ação.']);critical&&insights.push(['red',`${critical} prioridade(s) crítica(s)`,'Exigem tratamento executivo.']);attention&&insights.push(['amber',`${attention} registro(s) em atenção`,'Exigem decisão ou plano de recuperação.']);addRatio>10&&insights.push(['amber',`Aditivos equivalem a ${addRatio.toFixed(1)}% do contrato inicial`,'Concentração de alterações merece revisão de causa e escopo.']);payRatio>80&&insights.push(['blue',`${payRatio.toFixed(1)}% do contratado atualizado já foi pago`,'Confirme entregas e aceite antes do saldo final.']);if(works.length)insights.push([avgReal+10<avgPlanned?'amber':'blue',`Planejado ${avgPlanned.toFixed(1)}% x realizado ${avgReal.toFixed(1)}%`,`Desvio ${(avgReal-avgPlanned)>=0?'+':''}${(avgReal-avgPlanned).toFixed(1)} p.p.`]);if(!insights.length)insights.push(['green','Sem desvio crítico evidente','Acompanhe prazos, custos e pendências periodicamente.'])}$('#executiveInsights').innerHTML=insights.map(([c,b,sm])=>`<div class="attention-item insight-${c==='red'?'risk':c==='amber'?'warn':c==='green'?'good':''}"><i class="dot ${c==='green'?'blue':c}"></i><div><b>${b}</b><small>${sm}</small></div></div>`).join('');$('#analysisItems').innerHTML=arr.length?arr.map(t=>{let c=context(t);return `<div class="attention-item analysis-item"><div><b>${esc(taskDisplayName(t))}</b><small>${esc(t.nature)} · ${esc(c.f.name)} · ${esc(t.company||'Sem empresa')} · ${esc(t.priority||'Normal')}${t.blocked?' · BLOQUEADA':''}</small></div><button class="secondary" onclick="openTask('${t.id}')">Abrir</button></div>`}).join(''):'<div class="empty">Nenhum registro incluído.</div>'}
 const REPORT_COMPLETE_SECTIONS=[['section:management','Gestão da obra'],['section:financial','Financeiro'],['section:payments','Programação / pagamentos'],['section:additives','Aditivos'],['section:suppliers','Fornecedores'],['section:deadlines','Prazos / atrasos']];
 const REPORT_FIELDS={management:[['name','Tarefa / Projeto'],['phase','Etapa'],['company','Fornecedor'],['status','Status'],['priority','Prioridade'],['planned','Planejado (%)'],['real','Realizado (%)'],['variance','Desvio (p.p.)'],['due','Prazo'],['delay','Dias de atraso'],['blocked','Bloqueada']],financial:[['name','Tarefa / Projeto'],['phase','Etapa'],['company','Fornecedor'],['contracted','Custo estimado inicial'],['additives','Aditivos estimados'],['updated','Custo estimado atualizado'],['invoiced','Custo real / Incorrido'],['paid','Pago'],['balance','Saldo da estimativa']],contracts:[['name','Tarefa / Projeto'],['phase','Etapa'],['company','Fornecedor'],['contracted','Custo estimado'],['additives','Aditivos'],['updated','Custo estimado atualizado'],['paid','Pago'],['balance','Saldo da estimativa']],payments:[['dueDate','Vencimento'],['name','Tarefa / Projeto'],['phase','Etapa'],['company','Fornecedor'],['installment','Parcela / medição'],['amount','Programado'],['paidAmount','Pago'],['openAmount','Saldo'],['delay','Dias em atraso'],['status','Situação'],['document','NF / boleto']],additives:[['name','Tarefa / Projeto'],['phase','Etapa'],['company','Fornecedor'],['additive','Aditivo'],['additiveDate','Data'],['additiveMap','Mapa / documento'],['additiveValue','Valor']],suppliers:[['company','Fornecedor'],['committed','Comprometido'],['invoiced','Incorrido'],['paid','Pago'],['incurred','Incorrido mensal'],['open','Em aberto']],deadlines:[['name','Tarefa / Projeto'],['phase','Etapa'],['company','Fornecedor'],['status','Status'],['priority','Prioridade'],['due','Prazo'],['delay','Dias de atraso'],['blocked','Bloqueada']]};
 function reportDateAllowed(date){const from=$('#reportDateFrom')?.value||'',to=$('#reportDateTo')?.value||'';if(!date)return !from&&!to;return (!from||date>=from)&&(!to||date<=to)}
@@ -2119,6 +2136,8 @@ function renderAll(){
  }finally{renderInProgress=false}
 }
 
+
+window.ccgeCRDApp={snapshot:()=>JSON.parse(JSON.stringify(persistentStateSnapshot())),taskBaseName,taskDisplayName,acceptSnapshot:next=>{state=next;recomputeDerivedState();safeStore.set(JSON.stringify(persistentStateSnapshot()));renderAll()}};
 
 if($('#quickFinancialPayment'))$('#quickFinancialPayment').onclick=openQuickPayment;
 $('#closeQuickPayment').onclick=$('#cancelQuickPayment').onclick=()=>$('#quickPaymentModal').classList.remove('open');
@@ -2278,6 +2297,7 @@ setLoginLoading(true);try{
     return;
   }
 
+  const auditUser=await supabaseClient.auth.getUser();window.ccgeAuditActor=auditUser.data?.user?.id||null;setTimeout(()=>ccgeRetryPendingStorageDeletes(),0);
   state.selected=[]; /* nenhuma ação/análise pré-selecionada ao acessar o CCGE */
   ccgeBootstrapped=true;
   showAuthGate(false);
@@ -2430,7 +2450,7 @@ window.ccgeToggleTaskExpand=function(btn,e){e?.preventDefault?.();e?.stopPropaga
 <script>
 /* v1.59.5.1 — atualização automática segura, sem depender de F5 */
 (function ccgeVersionWatch(){
- const LOCAL_VERSION='1.62.7.3';
+ const LOCAL_VERSION='1.62.7.4';
  let busy=false;
  function hasUnsavedWork(){
    const tm=document.getElementById('taskModal');
@@ -2477,7 +2497,7 @@ window.ccgeToggleTaskExpand=function(btn,e){e?.preventDefault?.();e?.stopPropaga
  function install(){document.querySelectorAll('.modal .dialog').forEach(installResize)}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();new MutationObserver(install).observe(document.documentElement,{childList:true,subtree:true});
  function filenameSuggestions(name){const n=String(name||'').replace(/\.[^.]+$/,'');const out={};let c=n.match(/\bCRD[ _.-]*(\d+)\b/i);if(c){out.number='CRD '+c[1];out.measurement=c[1]};let m=n.match(/^\s*(.*?)\s*[-–]\s*NF\s*[-#º°]?\s*(\d+)/i);if(m){out.supplier=m[1].trim();out.number=m[2]}m=n.match(/(?:^|[-_\s])v\.?\s*(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})(?:$|[-_\s])/i);if(m){let y=m[3];if(y.length===2)y='20'+y;out.dueDate=`${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`}return out}
  async function ensurePdfJs(){if(window.pdfjsLib)return window.pdfjsLib;return new Promise((resolve,reject)=>{let sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';sc.onload=()=>{pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';resolve(pdfjsLib)};sc.onerror=()=>reject(new Error('Falha ao carregar leitor PDF'));document.head.appendChild(sc)})}
- async function pdfText(file){if(!/pdf/i.test(file.type||'')&&!/\.pdf$/i.test(file.name||''))return '';const lib=await ensurePdfJs(),buf=await file.arrayBuffer(),pdf=await lib.getDocument({data:buf}).promise;let txt='';for(let p=1;p<=Math.min(pdf.numPages,5);p++){const pg=await pdf.getPage(p),c=await pg.getTextContent();txt+=' '+c.items.map(x=>x.str).join(' ')}return txt.replace(/\s+/g,' ').trim()}
+ async function pdfText(file){if(!/pdf/i.test(file.type||'')&&!/\.pdf$/i.test(file.name||''))return '';const lib=await ensurePdfJs(),buf=await file.arrayBuffer(),pdf=await lib.getDocument({data:buf}).promise;let txt='';for(let p=1;p<=pdf.numPages;p++){const pg=await pdf.getPage(p),c=await pg.getTextContent();txt+=' '+c.items.map(x=>x.str).join(' ')}return txt.replace(/\s+/g,' ').trim()}
  async function ensureTesseract(){if(window.Tesseract)return window.Tesseract;return new Promise((resolve,reject)=>{let sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';sc.onload=()=>resolve(window.Tesseract);sc.onerror=()=>reject(new Error('Falha ao carregar OCR'));document.head.appendChild(sc)})}
  async function pdfOcr(file){const lib=await ensurePdfJs(),buf=await file.arrayBuffer(),pdf=await lib.getDocument({data:buf}).promise,T=await ensureTesseract();let txt='';for(let p=1;p<=Math.min(pdf.numPages,2);p++){const pg=await pdf.getPage(p),vp=pg.getViewport({scale:1.6}),cv=document.createElement('canvas');cv.width=Math.ceil(vp.width);cv.height=Math.ceil(vp.height);await pg.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;const r=await T.recognize(cv,'por');txt+=' '+(r?.data?.text||'')}return txt.replace(/\s+/g,' ').trim()}
  function parseBRDate(d,m,y){y=String(y);if(y.length===2)y='20'+y;const dd=Number(d),mm=Number(m),yy=Number(y),dt=new Date(yy,mm-1,dd);if(dt.getFullYear()!==yy||dt.getMonth()!==mm-1||dt.getDate()!==dd)return '';return `${yy}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`}
@@ -2505,146 +2525,194 @@ function ccgeCRDLayoutDescriptions(items,pageWidth){
 }
 async function ccgeCRDLayoutFromPDF(file){
  const lib=await ensurePdfJs(),pdf=await lib.getDocument({data:await file.arrayBuffer()}).promise,found=new Map();found.descriptions=new Map();found.supplierRows=[];found.descriptionRows=[];
- for(let p=1;p<=Math.min(pdf.numPages,5);p++){
+ for(let p=1;p<=pdf.numPages;p++){
   const page=await pdf.getPage(p),content=await page.getTextContent();
   for(const [k,v] of ccgeCRDLayoutSuppliers(content.items,page.view[2]-page.view[0]))found.set(k,v);
   for(const [k,v] of ccgeCRDLayoutDescriptions(content.items,page.view[2]-page.view[0]))found.descriptions.set(k,v);
-  found.supplierRows.push(...ccgeCRDLayoutCells(content.items,page.view[2]-page.view[0],.23,.35));
-  found.descriptionRows.push(...ccgeCRDLayoutCells(content.items,page.view[2]-page.view[0],.88,1.2));
+  found.supplierRows.push(...ccgeCRDLayoutCells(content.items,page.view[2]-page.view[0],.23,.35).map(r=>({...r,page:p})));
+  found.descriptionRows.push(...ccgeCRDLayoutCells(content.items,page.view[2]-page.view[0],.88,1.2).map(r=>({...r,page:p})));
  }
  return found;
 }
 
-// Planejamento determinístico para a futura Central de Medições: não modifica tarefas.
-// Uma descrição só pode ser vinculada automaticamente quando identifica UMA tarefa do ME.
+const taskBaseName=t=>window.ccgeCRDApp.taskBaseName(t);
+// Central de Medições: planejamento, revisão e gravação separados.
+function ccgeCRDNormalized(v){return String(v??'').trim().normalize('NFC');}
+function ccgeCRDLegacyKey(r){const tax=String(r.supplierTaxId??r.cnpj??'').replace(/\D/g,'');return [ccgeCRDNormalized(r._crdNumber??r.crd).replace(/^0+(?=\d)/,''),ccgeCRDNormalized(r.measurement),ccgeCRDNormalized(r.number),...(tax?[tax]:[])].join('|');}
+function ccgeCRDIdentityKey(r){
+ const tax=String(r.supplierTaxId??r.cnpj??'').replace(/\D/g,'');
+ return tax&&r.number?[tax,ccgeCRDNormalized(r.number).replace(/^0+(?=\d)/,''),ccgeCRDNormalized(r.issueDate),ccgeCRDNormalized(r.measurement)].join('|'):'';
+}
+function ccgeCRDMapReference(t){
+ const matches=String(t.map??t.mapRef??t.costMapRef??'').match(/\b\d{3}-\d{2}\b/g)||[];
+ return [...new Set(matches)].length===1?matches[0]:'';
+}
+function ccgeCRDValidDate(v){if(!v)return true;return /^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(Date.parse(v))&&new Date(v).toISOString().slice(0,10)===v;}
 function ccgePlanCRDDistribution(rows,tasks){
- const normalize=v=>String(v??'').trim().normalize('NFC');
- const normCRD=v=>String(v??'').trim().replace(/^0+(?=\d)/,'');
- const keyOf=r=>[normCRD(r._crdNumber??r.crd),normalize(r.measurement),normalize(r.number)].join('|');
- const index=new Map(),existing=new Set(),seen=new Set();
- for(const t of tasks||[]){
-  if(t?.archived)continue;
-  const name=normalize(taskBaseName(t));if(!name||!t.id)continue;
-  if(!index.has(name))index.set(name,[]);
-  index.get(name).push(t.id);
- }
- for(const t of tasks||[])for(const invoice of t?.invoices||[]){
-  if(invoice?._crdNumber)existing.add(keyOf(invoice));
- }
- return (rows||[]).map((row,i)=>{
-  const name=normalize(row.description),matches=index.get(name)||[],key=keyOf(row),manual=normalize(row._targetTaskId),manualTask=manual?(tasks||[]).find(t=>t.id===manual&&!t.archived):null;
-  let status='ready';
-  if(!name||!normalize(row.number)||!normalize(row.measurement)||!normCRD(row.crd)||!normalize(row.supplier)||!/^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/.test(normalize(row.cnpj))||!Number.isFinite(Number(row.amount))||Number(row.amount)<=0)status='invalid';
-  else if(existing.has(key)||seen.has(key))status='duplicate';
+ const nameOf=t=>taskBaseName(t);
+ const active=(tasks||[]).filter(t=>t?.id&&!t.archived),legacy=new Set(),identity=new Set(),seenLegacy=new Set(),seenIdentity=new Set();
+ for(const t of tasks||[])for(const x of [...(t.invoices||[]),...(t._pendingCRDSources||[]).flatMap(s=>(s.rows||[]).map(r=>({_crdNumber:r.original?.crd,_sourceRowKey:r.key,_sourceIdentityKey:r.identityKey})))]){if(x._crdNumber)legacy.add(x._sourceRowKey||ccgeCRDLegacyKey(x));const k=ccgeCRDIdentityKey(x);if(k)identity.add(k);if(x._sourceIdentityKey)identity.add(x._sourceIdentityKey);}
+ return (rows||[]).map((row,index)=>{
+  const name=ccgeCRDNormalized(row.description),key=row._sourceRowKey||ccgeCRDLegacyKey(row),idKey=row._sourceIdentityKey||ccgeCRDIdentityKey(row);
+  const named=active.filter(t=>ccgeCRDNormalized(nameOf(t))===name),mapped=active.filter(t=>ccgeCRDMapReference(t)===ccgeCRDNormalized(row.measurement));
+  const intersection=named.filter(t=>mapped.some(m=>m.id===t.id));
+  const manual=ccgeCRDNormalized(row._targetTaskId),manualTask=active.find(t=>t.id===manual);
+  let candidates=named,reason='description',status='ready';
+  if(intersection.length){candidates=intersection;reason='description-and-map';}
+  else if(!named.length&&mapped.length){candidates=mapped;reason='map';}
+  const conflict=named.length&&mapped.length&&!intersection.length;
+  if(!ccgeCRDValidDate(row.issueDate)||!ccgeCRDValidDate(row.dueDate)||Math.abs(Number(row.amount)*100-Math.round(Number(row.amount)*100))>0.00001||!name||!/^\d{4}-(0[1-9]|1[0-2])$/.test(ccgeCRDNormalized(row.competence))||!ccgeCRDNormalized(row.number)||!ccgeCRDNormalized(row.measurement)||!ccgeCRDNormalized(row.crd)||!ccgeCRDNormalized(row.supplier)||!/^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/.test(ccgeCRDNormalized(row.cnpj))||!Number.isFinite(Number(row.amount))||Number(row.amount)<=0)status='invalid';
+  else if(legacy.has(key)||legacy.has(key.split('|').slice(0,3).join('|'))||seenLegacy.has(key)||(idKey&&(identity.has(idKey)||seenIdentity.has(idKey))))status='duplicate';
   else if(manual&&!manualTask)status='invalid-target';
-  else if(!manualTask&&!matches.length)status='unmatched';
-  else if(!manualTask&&matches.length!==1)status='ambiguous';
-  seen.add(key);
-  return {index:i,status,taskId:status==='ready'?(manualTask?.id||matches[0]):null,description:name,key,row,manual:!!manualTask};
+  else if(!manualTask&&conflict)status='conflicting-map';
+  else if(!manualTask&&!candidates.length)status='unmatched';
+  else if(!manualTask&&candidates.length!==1)status='ambiguous';
+  seenLegacy.add(key);if(idKey)seenIdentity.add(idKey);
+  return {index,status,taskId:status==='ready'?(manualTask?.id||candidates[0]?.id):null,description:name,key,identityKey:idKey,row,manual:!!manualTask,reason:manualTask?'manual':reason};
  });
 }
-
-function ccgeStageCRDDistribution(snapshot,rows,documentName,makeId){
- const plan=ccgePlanCRDDistribution(rows,snapshot?.tasks||[]);
- const rejected=plan.filter(p=>p.status!=='ready');
+function ccgeStageCRDDistribution(snapshot,rows,documentName,makeId,context={}){
+ const plan=ccgePlanCRDDistribution(rows,snapshot?.tasks||[]),rejected=plan.filter(p=>p.status!=='ready');
  if(!plan.length||rejected.length)return {ok:false,plan,rejected,snapshot:null};
- const assignments=new Map(),ids=new Set();
+ const assignments=new Map(),ids=new Set((snapshot.tasks||[]).flatMap(t=>(t.invoices||[]).map(x=>x.id)));
+ const documentId=context.documentId||makeId(),at=context.at||new Date().toISOString(),actor=context.actor||null;
+ if(!documentId)return {ok:false,plan,rejected:[{status:'invalid-id'}],snapshot:null};
+ const invoiceIds=[];
  for(const p of plan){
-  const id=makeId();
-  if(!id||ids.has(id))return {ok:false,plan,rejected:[{status:'invalid-id',index:p.index}],snapshot:null};
-  ids.add(id);
-  const r=p.row;
-  const invoice={id,competence:r.competence||'',measurement:r.measurement||'',issueDate:r.issueDate||'',supplier:r.supplier||'',supplierTaxId:r.cnpj||'',documentType:r.type||'',number:r.number||'',description:r.description||'',amount:Number(r.amount),dueDate:r.dueDate||'',situation:'Ativa',attachment:null,_crdNumber:r.crd||'',_sourceDocumentName:documentName||''};
-  if(!assignments.has(p.taskId))assignments.set(p.taskId,[]);
-  assignments.get(p.taskId).push(invoice);
+  const id=makeId();if(!id||ids.has(id)||id===documentId)return {ok:false,plan,rejected:[{status:'invalid-id',index:p.index}],snapshot:null};ids.add(id);invoiceIds.push(id);
+  const r=p.row,original=r._original||Object.fromEntries(Object.entries(r).filter(([k])=>!k.startsWith('_')));
+  const audit={action:'import-confirmed',at,userId:actor,originalDescription:original.description||'',original,selectedTaskId:p.taskId,assignmentMethod:p.reason,changes:r._reviewChanges||[]};
+  const invoice={id,competence:r.competence||'',measurement:r.measurement||'',issueDate:r.issueDate||'',supplier:r.supplier||'',supplierTaxId:r.cnpj||'',documentType:r.type||'',number:r.number||'',description:r.description||'',amount:Number(r.amount),dueDate:r.dueDate||'',situation:'Ativa',attachment:null,_crdNumber:r.crd||'',_sourceDocumentName:documentName||'',_sourceDocumentId:documentId,_sourceRowKey:p.key,_sourceIdentityKey:p.identityKey,_originalDescription:original.description||'',auditHistory:[audit]};
+  if(!assignments.has(p.taskId))assignments.set(p.taskId,[]);assignments.get(p.taskId).push(invoice);
  }
- const next={...snapshot,tasks:(snapshot.tasks||[]).map(t=>assignments.has(t.id)?{...t,invoices:[...(t.invoices||[]),...assignments.get(t.id)],_invoiceLedgerActive:true}:t)};
- return {ok:true,plan,rejected:[],snapshot:next,count:plan.length,taskCount:assignments.size};
+ const imported={id:documentId,name:documentName,sha256:context.sha256||'',at,userId:actor,attachment:null,rows:plan.map((p,i)=>({invoiceId:invoiceIds[i],taskId:p.taskId,key:p.key,identityKey:p.identityKey,original:p.row._original||p.row,reviewed:Object.fromEntries(Object.entries(p.row).filter(([k])=>!k.startsWith('_'))),changes:p.row._reviewChanges||[],assignmentMethod:p.reason}))};
+ const next={...snapshot,crdImports:[...(snapshot.crdImports||[]),imported],tasks:(snapshot.tasks||[]).map(t=>assignments.has(t.id)?{...t,invoices:[...(t.invoices||[]),...assignments.get(t.id)],_invoiceLedgerActive:true}:t)};
+ return {ok:true,plan,rejected:[],snapshot:next,count:plan.length,taskCount:assignments.size,documentId,invoiceIds};
+}
+
+function ccgeCRDTaskSnapshot(){
+ const snap=window.ccgeCRDApp.snapshot(),modal=document.getElementById('taskModal');
+ if(modal?.classList.contains('open')){const task=window.ccgeReadTaskDraft();snap.tasks=snap.tasks.map(t=>t.id===task.id?task:t);if(!snap.tasks.some(t=>t.id===task.id))snap.tasks.push(task);}
+ const registry=(snap.crdImports||[]).flatMap(s=>(s.rows||[]).map(r=>({_crdNumber:r.original?.crd,_sourceRowKey:r.key,_sourceIdentityKey:r.identityKey})));snap.tasks.push({id:'__crd_registry__',archived:true,invoices:registry});
+ return snap;
+}
+function ccgeCRDSelectedRows(draft){return draft.rows.filter(r=>r._selected).map(r=>({...r,_targetTaskId:draft.taskId}));}
+function ccgeMergeCRDSources(snapshot,task){
+ const sources=JSON.parse(JSON.stringify(snapshot.crdImports||[]));
+ for(const source of task._pendingCRDSources||[]){
+  const old=sources.find(s=>s.id===source.id||s.sha256&&s.sha256===source.sha256);
+  if(old){const keys=new Set((old.rows||[]).map(r=>r.key));old.rows=[...(old.rows||[]),...(source.rows||[]).filter(r=>!keys.has(r.key))];if(!old.attachment)old.attachment=source.attachment;}
+  else sources.push(JSON.parse(JSON.stringify(source)));
+ }
+ for(const source of sources){if(source.attachment)delete source.attachment._pendingUpload;for(const row of source.rows||[])if(row.taskId===task.id){const invoice=(task.invoices||[]).find(x=>x.id===row.invoiceId);row.linkStatus=!invoice?'Excluída':invoice.situation==='Cancelada'?'Cancelada':'Ativa';}}
+ return sources;
+}
+function ccgeCRDTaskSession(draft){const m=document.getElementById('taskModal');return m?.classList.contains('open')&&m.dataset.invoiceSession===draft.session&&window.ccgeReadTaskDraft().id===draft.taskId;}
+function ccgeOpenTaskCRD(){
+ const modal=document.getElementById('taskModal');if(!modal?.classList.contains('open')||ccgeCRDCentralBusy)return;
+ ccgeCRDCentralClose();const t=window.ccgeReadTaskDraft();ccgeCRDCentralDraft={rows:[],taskId:t.id,session:modal.dataset.invoiceSession};
+ document.getElementById('crdCentralModal').classList.add('open');ccgeCRDCentralRender();
 }
 
 let ccgeCRDCentralDraft=null,ccgeCRDCentralBusy=false;
-function ccgeCRDCentralClose(){
- if(ccgeCRDCentralBusy)return;
- ccgeCRDCentralDraft=null;
- document.getElementById('crdCentralModal').classList.remove('open');
+window.ccgeMergeCRDSources=ccgeMergeCRDSources;
+window.ccgeOpenTaskCRD=ccgeOpenTaskCRD;
+function ccgeCRDCentralClose(){if(ccgeCRDCentralBusy)return;if(ccgeCRDCentralDraft?.previewURL)URL.revokeObjectURL(ccgeCRDCentralDraft.previewURL);document.getElementById('crdOriginalPreview').removeAttribute('src');ccgeCRDCentralDraft=null;document.getElementById('crdCentralFile').value='';document.getElementById('crdCentralModal').classList.remove('open');}
+function ccgeCRDReviewChange(row,field,value){
+ const old=row[field];if(old===value)return;
+ row._reviewChanges=row._reviewChanges||[];row._reviewChanges.push({field,before:old??null,after:value,at:new Date().toISOString()});row[field]=value;
 }
 function ccgeCRDCentralRender(){
- const host=document.getElementById('crdCentralReview'),btn=document.getElementById('confirmCRDCentral');
- const draft=ccgeCRDCentralDraft;
- if(!draft){host.textContent='Selecione um PDF para revisar.';btn.disabled=true;return}
- const plan=ccgePlanCRDDistribution(draft.rows,state.tasks),rejected=plan.filter(p=>p.status!=='ready');
- const summary=document.createElement('p');
- summary.textContent=plan.length+' linha(s) identificada(s); '+(plan.length-rejected.length)+' pronta(s); '+rejected.length+' pendência(s).';
- const table=document.createElement('table');table.style.width='100%';
- const head=document.createElement('thead');const tr=document.createElement('tr');
- for(const name of ['CRD','Mapa','NF','Fornecedor','Descrição','Valor','Tarefa / situação']){const th=document.createElement('th');th.textContent=name;tr.appendChild(th)}head.appendChild(tr);table.appendChild(head);
- const body=document.createElement('tbody');
- for(const p of plan){
-  const row=document.createElement('tr'),r=p.row,task=state.tasks.find(t=>t.id===p.taskId);
-  for(const value of [r.crd,r.measurement,r.number,r.supplier,r.description,String(r.amount)]){
-   const td=document.createElement('td');td.textContent=value==null?'':String(value);td.style.padding='6px';row.appendChild(td);
-  }
-  const cell=document.createElement('td');cell.style.padding='6px';
-  const select=document.createElement('select');select.setAttribute('aria-label','Tarefa da medição '+String(r.number||p.index));
-  const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent=p.status==='ready'?'Correspondência automática':'Selecionar tarefa — '+p.status;select.appendChild(placeholder);
-  for(const t of state.tasks.filter(t=>!t.archived&&t.id)){
-   const opt=document.createElement('option');opt.value=t.id;opt.textContent=taskDisplayName(t);select.appendChild(opt);
-  }
-  select.value=r._targetTaskId||'';
-  select.addEventListener('change',()=>{r._targetTaskId=select.value;ccgeCRDCentralRender()});
-  cell.appendChild(select);
-  const note=document.createElement('small');note.textContent=' '+(task?taskDisplayName(task):p.status)+(p.manual?' (confirmada manualmente)':'');cell.appendChild(note);
-  row.appendChild(cell);body.appendChild(row);
- }
- table.appendChild(body);host.replaceChildren(summary,table);
- btn.disabled=!!rejected.length||!plan.length||ccgeCRDCentralBusy;
+ const host=document.getElementById('crdCentralReview'),btn=document.getElementById('confirmCRDCentral'),d=ccgeCRDCentralDraft;
+ host.replaceChildren();btn.disabled=true;if(!d?.file){host.textContent='Selecione o CRD. Confira e selecione apenas as medições desta tarefa.';return;}
+ const snap=ccgeCRDTaskSnapshot(),plan=ccgePlanCRDDistribution(d.rows,snap.tasks),selected=ccgeCRDSelectedRows(d),selectedPlan=ccgePlanCRDDistribution(selected,snap.tasks);
+ const summary=document.createElement('p');summary.textContent=selected.length+' selecionada(s) — R$ '+selected.reduce((v,r)=>v+Number(r.amount||0),0).toLocaleString('pt-BR',{minimumFractionDigits:2});host.appendChild(summary);
+ const table=document.createElement('table');table.className='crd-review-table';const head=document.createElement('thead'),hr=document.createElement('tr');for(const name of ['Selecionar','Fornecedor / Documento','Valor','Situação']){const th=document.createElement('th');th.textContent=name;hr.appendChild(th);}head.appendChild(hr);table.appendChild(head);const body=document.createElement('tbody');
+ for(const p of plan){const r=p.row,tr=document.createElement('tr'),choose=document.createElement('td'),check=document.createElement('input');check.type='checkbox';check.checked=!!r._selected;check.disabled=p.status==='duplicate';check.setAttribute('aria-label','Selecionar lançamento '+(r.number||p.index+1));check.onchange=()=>{r._selected=check.checked;ccgeCRDCentralRender();};choose.appendChild(check);tr.appendChild(choose);for(const text of [(r.supplier||'Fornecedor a conferir')+' / '+(r.number||'Documento a conferir'),Number(r.amount||0).toLocaleString('pt-BR',{minimumFractionDigits:2}),p.status==='duplicate'?'Já vinculado':p.taskId===d.taskId?'Sugerido para esta tarefa':p.taskId?'Outra tarefa sugerida':'Conferência manual']){const td=document.createElement('td');td.textContent=text;tr.appendChild(td);}body.appendChild(tr);}table.appendChild(body);host.appendChild(table);
+ for(const p of plan){const r=p.row,box=document.createElement('fieldset');box.className='crd-review-row';
+ const check=document.createElement('input');check.type='checkbox';check.checked=!!r._selected;check.disabled=p.status==='duplicate';check.setAttribute('aria-label','Selecionar documento '+r.number);check.onchange=()=>{r._selected=check.checked;ccgeCRDCentralRender()};box.appendChild(check);
+ const label=document.createElement('b');label.textContent=' Documento '+(r.number||'sem número')+' — '+(p.status==='duplicate'?'Já vinculado; importação bloqueada':p.taskId===d.taskId?'Sugestão para esta tarefa':p.taskId?'Sugestão: '+window.ccgeCRDApp.taskDisplayName(snap.tasks.find(t=>t.id===p.taskId)):'Seleção manual necessária');box.appendChild(label);
+ for(const [key,name] of [['supplier','Fornecedor'],['cnpj','CNPJ'],['type','Tipo'],['number','Documento'],['measurement','ME'],['competence','Competência (conferir)'],['issueDate','Emissão'],['dueDate','Vencimento'],['description','Descrição'],['amount','Valor'],['crd','CRD']]){const l=document.createElement('label');l.textContent=name;const input=document.createElement('input');input.value=r[key]??'';input.setAttribute('aria-label',name+' — documento '+r.number);input.type=key==='amount'?'number':['issueDate','dueDate'].includes(key)?'date':'text';if(key==='amount')input.step='0.01';input.onchange=()=>{ccgeCRDReviewChange(r,key,key==='amount'?Number(input.value):input.value);ccgeCRDCentralRender()};l.appendChild(input);box.appendChild(l);}
+ const origin=document.createElement('small');origin.textContent=r._sourcePage?'Origem: página '+r._sourcePage:'Página não identificada; confira no PDF';box.appendChild(origin);
+ if(r._sourcePage){const locate=document.createElement('button');locate.type='button';locate.textContent='Ver página';locate.onclick=()=>{document.getElementById('crdOriginalPreview').src=d.previewURL+'#page='+r._sourcePage};box.appendChild(locate);}
+ host.appendChild(box);}
+ const manual=document.createElement('button');manual.type='button';manual.textContent='Adicionar lançamento para conferência manual';manual.onclick=()=>{d.rows.push({_selected:true,_manual:true,_sourcePage:null,_original:{}});ccgeCRDCentralRender()};host.appendChild(manual);
+ btn.disabled=!selected.length||selectedPlan.some(p=>p.status!=='ready')||ccgeCRDCentralBusy||!ccgeCRDTaskSession(d);
 }
 async function ccgeCRDCentralLoad(file){
  if(!file||ccgeCRDCentralBusy)return;
- ccgeCRDCentralBusy=true;ccgeCRDCentralDraft=null;
- const host=document.getElementById('crdCentralReview');
- host.textContent='Lendo documento...';document.getElementById('confirmCRDCentral').disabled=true;
+ const previous=ccgeCRDCentralDraft;if(!previous?.taskId){window.ccgeNotify('Abra a tarefa para importar o CRD.');return;}
+ ccgeCRDCentralBusy=true;
  try{
-  if(!/\.pdf$/i.test(file.name||'')&&!/pdf/i.test(file.type||''))throw Error('Selecione um arquivo PDF.');
-  const rows=ccgeParseCRDRows(await pdfText(file));
-  if(!rows.length)throw Error('Nenhuma linha de CRD identificada.');
-  const layout=await ccgeCRDLayoutFromPDF(file);
-  const aligned=layout.supplierRows.length===rows.length&&layout.descriptionRows.length===rows.length&&rows.every((r,i)=>r.measurement===layout.supplierRows[i].measurement&&r.measurement===layout.descriptionRows[i].measurement);
-  if(!aligned)throw Error('Não foi possível alinhar todas as linhas do PDF com segurança.');
-  for(let i=0;i<rows.length;i++){
-   rows[i].supplier=layout.supplierRows[i].value||'';
-   rows[i].description=layout.descriptionRows[i].value||'';
-  }
-  ccgeCRDCentralDraft={rows,name:file.name,file};
- }catch(err){host.textContent='Importação bloqueada: '+(err.message||String(err));}
- finally{ccgeCRDCentralBusy=false;if(ccgeCRDCentralDraft)ccgeCRDCentralRender();}
-}
-async function ccgeCRDCentralConfirm(){
- if(ccgeCRDCentralBusy||!ccgeCRDCentralDraft)return;
- const draft=ccgeCRDCentralDraft,staged=ccgeStageCRDDistribution(persistentStateSnapshot(),draft.rows,draft.name,ccgeNewInvoiceId);
- if(!staged.ok){ccgeCRDCentralRender();toast('CRD não salvo: existem linhas pendentes ou duplicadas.');return}
- if(document.getElementById('taskModal')?.classList.contains('open')){toast('Feche a janela de tarefa antes de distribuir o CRD, para não sobrescrever edições pendentes.');return}
- if(!confirm('Salvar '+staged.count+' medições em '+staged.taskCount+' tarefas?'))return;
- ccgeCRDCentralBusy=true;document.getElementById('confirmCRDCentral').disabled=true;
- try{
-  const attachment=await uploadCCGEFile(draft.file,'crd/medicoes');
-  for(const task of staged.snapshot.tasks||[])for(const invoice of task.invoices||[])if(invoice._sourceDocumentName===draft.name&&staged.plan.some(p=>p.taskId===task.id&&String(p.row.crd)===String(invoice._crdNumber)&&String(p.row.measurement)===String(invoice.measurement)&&String(p.row.number)===String(invoice.number)))invoice.attachment={...attachment};
-  const ok=await salvarEstadoNuvem(staged.snapshot);
-  if(!ok){toast('Falha ao confirmar o CRD no Supabase. Revise antes de tentar novamente.');return}
-  state=staged.snapshot;safeStore.set(JSON.stringify(staged.snapshot));ccgeCRDCentralDraft=null;
-  document.getElementById('crdCentralModal').classList.remove('open');renderAll();
-  toast('CRD salvo: '+staged.count+' medições distribuídas.');
- }catch(err){console.error(err);toast('Erro ao salvar CRD. Revise os dados e tente novamente.')}
+  if(!/\.pdf$/i.test(file.name||'')&&!/pdf/i.test(file.type||''))throw Error('Selecione um PDF.');
+  if(previous.previewURL)URL.revokeObjectURL(previous.previewURL);
+  const digest=await crypto.subtle.digest('SHA-256',await file.arrayBuffer()),sha256=Array.from(new Uint8Array(digest),v=>v.toString(16).padStart(2,'0')).join('');
+  let rows=[],warning='';
+  try{rows=ccgeParseCRDRows(await pdfText(file));const layout=await ccgeCRDLayoutFromPDF(file);const aligned=layout.supplierRows.length===rows.length&&layout.descriptionRows.length===rows.length&&rows.every((r,i)=>r.measurement===layout.supplierRows[i].measurement&&r.measurement===layout.descriptionRows[i].measurement);
+   if(!aligned)throw Error('Alinhamento não confiável.');
+   rows.forEach((r,i)=>{r.supplier=layout.supplierRows[i].value||'';r.description=layout.descriptionRows[i].value||'';r._sourcePage=layout.supplierRows[i].page;r._original=JSON.parse(JSON.stringify(r));r._sourceRowKey=ccgeCRDLegacyKey(r);r._sourceIdentityKey=ccgeCRDIdentityKey(r);});
+  }catch(err){rows=[];warning='Extração não confiável. Preencha e confira manualmente no PDF.';}
+  if(!ccgeCRDTaskSession(previous))throw Error('A tarefa foi fechada ou alterada durante a leitura.');
+  const snap=ccgeCRDTaskSnapshot(),plan=ccgePlanCRDDistribution(rows,snap.tasks);rows.forEach((r,i)=>r._selected=plan[i].status==='ready'&&plan[i].taskId===previous.taskId);
+  ccgeCRDCentralDraft={...previous,rows,name:file.name,file,sha256,previewURL:URL.createObjectURL(file)};
+  document.getElementById('crdOriginalPreview').src=ccgeCRDCentralDraft.previewURL;
+  if(warning)window.ccgeNotify(warning);
+ }catch(err){window.ccgeNotify(err.message);}
  finally{ccgeCRDCentralBusy=false;ccgeCRDCentralRender();}
 }
-document.getElementById('openCRDCentral').addEventListener('click',()=>{ccgeCRDCentralDraft=null;document.getElementById('crdCentralModal').classList.add('open');ccgeCRDCentralRender()});
+async function ccgeCRDCentralConfirm(){
+ const d=ccgeCRDCentralDraft;if(ccgeCRDCentralBusy||!d?.file||!ccgeCRDTaskSession(d))return;
+ const rows=ccgeCRDSelectedRows(d),app=window.ccgeCRDApp;
+ if(!rows.length||ccgePlanCRDDistribution(rows,ccgeCRDTaskSnapshot().tasks).some(p=>p.status!=='ready'))return;
+ if(!confirm('Adicionar '+rows.length+' medições à tarefa aberta? A gravação definitiva ocorrerá em Salvar alterações.'))return;
+ ccgeCRDCentralBusy=true;window.ccgeInvoiceUploadActive=true;let attachment,uploaded=false;
+ try{
+  const {data,error}=await supabaseClient.auth.getUser();if(error||!data?.user?.id)throw Error('Sessão expirada.');
+  let snap=ccgeCRDTaskSnapshot();const task=window.ccgeReadTaskDraft(),source=[...(snap.crdImports||[]),...(task._pendingCRDSources||[])].find(x=>x.sha256===d.sha256&&x.attachment);
+  if(source)attachment={...source.attachment};else{attachment=await uploadCCGEFile(d.file,'crd/medicoes');attachment._pendingUpload=true;uploaded=true;}
+  if(!ccgeCRDTaskSession(d))throw Error('A tarefa mudou durante o envio.');
+  snap=ccgeCRDTaskSnapshot();const staged=ccgeStageCRDDistribution(snap,rows,d.name,ccgeNewInvoiceId,{actor:data.user.id,sha256:d.sha256,documentId:source?.id});
+  if(!staged.ok)throw Error('Dados alterados ou duplicados. Confira novamente.');
+  const current=window.ccgeReadTaskDraft(),added=staged.snapshot.tasks.find(t=>t.id===d.taskId).invoices.filter(x=>staged.invoiceIds.includes(x.id));added.forEach(x=>{x.attachment={...attachment};x._sourcePage=rows[added.indexOf(x)]._sourcePage||null;});
+  const pending=staged.snapshot.crdImports.at(-1);pending.attachment={...attachment};
+  current.invoices=[...(current.invoices||[]),...added];current._invoiceLedgerActive=true;current._pendingCRDSources=[...(current._pendingCRDSources||[]),pending];document.getElementById('taskModal').dataset.temp=JSON.stringify(current);window.ccgeRenderInvoices(current);
+  ccgeCRDCentralBusy=false;ccgeCRDCentralClose();window.ccgeNotify('Medições conferidas no rascunho. Salve a tarefa para gravar definitivamente.');
+ }catch(err){if(uploaded&&attachment)await ccgeDiscardUnconfirmedUpload(attachment);window.ccgeNotify(err.message);}
+ finally{ccgeCRDCentralBusy=false;window.ccgeInvoiceUploadActive=false;ccgeCRDCentralRender();}
+}
+function ccgeOpenCRDCentral(){window.ccgeNotify('Abra uma tarefa e use Importar CRD na aba Medições.');return;}
+function ccgeOpenCRDCentralLegacy(){if(ccgeCRDCentralBusy)return;ccgeCRDCentralDraft=null;document.getElementById('crdCentralFile').value='';document.getElementById('crdCentralModal').classList.add('open');ccgeCRDCentralRender();ccgeRenderCRDSources();}
+document.getElementById('openCRDCentral').addEventListener('click',ccgeOpenCRDCentral);
+document.getElementById('openCRDCentralNav').addEventListener('click',ccgeOpenCRDCentral);
 document.getElementById('closeCRDCentral').addEventListener('click',ccgeCRDCentralClose);
 document.getElementById('cancelCRDCentral').addEventListener('click',ccgeCRDCentralClose);
 document.getElementById('confirmCRDCentral').addEventListener('click',ccgeCRDCentralConfirm);
 document.getElementById('crdCentralFile').addEventListener('change',e=>ccgeCRDCentralLoad(e.target.files?.[0]));
 const ccgeCRDDrop=document.getElementById('crdDropZone');
-ccgeCRDDrop.addEventListener('dragover',e=>{e.preventDefault()});
-ccgeCRDDrop.addEventListener('drop',e=>{e.preventDefault();ccgeCRDCentralLoad(e.dataTransfer?.files?.[0])});
+ccgeCRDDrop.addEventListener('dragover',e=>{e.preventDefault();});
+ccgeCRDDrop.addEventListener('drop',e=>{e.preventDefault();e.stopPropagation();const files=Array.from(e.dataTransfer?.files||[]);if(files.length!==1){window.ccgeNotify('Envie apenas um PDF de CRD por vez. Nenhum arquivo foi importado.');return;}ccgeCRDCentralLoad(files[0]);});
+function ccgeRenderCRDSources(){
+ const host=document.getElementById('crdCentralSources');host.replaceChildren();
+ for(const source of window.ccgeCRDApp.snapshot().crdImports||[]){const box=document.createElement('div');box.textContent=source.name+' — '+(source.rows||[]).length+' lançamentos — '+source.at+' ';
+  if(source.attachment){const open=document.createElement('button');open.textContent='Abrir PDF';open.onclick=()=>openCCGEAttachment(source.attachment);box.appendChild(open);const remove=document.createElement('button');remove.textContent='Excluir PDF sem vínculos';remove.onclick=()=>ccgeRemoveCRDSourceAttachment(source.id);box.appendChild(remove);}else{const note=document.createElement('small');note.textContent='PDF removido; histórico preservado.';box.appendChild(note);}host.appendChild(box);}
+}
+async function ccgeRemoveCRDSourceAttachment(id){
+ if(ccgeCRDCentralBusy)return;
+ const app=window.ccgeCRDApp,snapshot=app.snapshot(),source=(snapshot.crdImports||[]).find(x=>x.id===id),attachment=source?.attachment;
+ if(!attachment)return;
+ const withoutSource={...snapshot,crdImports:snapshot.crdImports.map(x=>x.id===id?{...x,attachment:null}:x)};
+ if(ccgeAttachmentStillReferenced(attachment,withoutSource)){window.ccgeNotify('O PDF ainda está vinculado a medições ou outros documentos. Remova esses vínculos antes de excluir.');return;}
+ if(!confirm('Excluir o PDF '+source.name+'? O histórico da importação será preservado.'))return;
+ ccgeCRDCentralBusy=true;
+ try{const {data,error}=await supabaseClient.auth.getUser();if(error||!data?.user?.id)throw Error('Sessão expirada.');const next={...withoutSource,crdImports:withoutSource.crdImports.map(x=>x.id===id?{...x,attachmentDeletedAt:new Date().toISOString(),attachmentDeletedBy:data.user.id}:x)};
+  if(!await salvarEstadoNuvem(next))throw Error('Gravação não confirmada.');app.acceptSnapshot(next);await ccgeDiscardUnconfirmedUpload(attachment);ccgeRenderCRDSources();
+ }catch(err){window.ccgeNotify('Não foi possível confirmar a exclusão: '+err.message);}finally{ccgeCRDCentralBusy=false;}
+}
+window.ccgeValidateCRDEdit=function(task){
+ const snapshot=window.ccgeCRDApp.snapshot(),others=(snapshot.tasks||[]).filter(t=>t.id!==task.id).flatMap(t=>t.invoices||[]),identities=new Set(others.map(ccgeCRDIdentityKey).filter(Boolean)),seen=new Set();
+ for(const x of task.invoices||[]){if(!x._crdNumber)continue;if(x._sourceDocumentId){const row={...x,crd:x._crdNumber,cnpj:x.supplierTaxId};if(ccgePlanCRDDistribution([{...row,_targetTaskId:task.id}], [{...task,invoices:[],_pendingCRDSources:[]}])[0].status!=='ready')return 'Medição CRD inválida: confira fornecedor, CNPJ, documento, competência, descrição e valor.';} const key=ccgeCRDIdentityKey(x);if(key&&(identities.has(key)||seen.has(key)))return 'Existe outra medição com o mesmo CNPJ, documento, emissão e referência ME.';if(key)seen.add(key);}return '';
+};
+
  function ccgeNewInvoiceId(){return 'inv_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9)}
  function contentSuggestions(txt){const o={},t=String(txt||'').replace(/\s+/g,' ');
  let m=firstMatch(t,[/(?:N(?:OTA)?\s*FISCAL|NF(?:-?E)?|N[ÚU]MERO\s*(?:DA\s*)?(?:NF|NOTA))\s*(?:N[º°.]?|[:#-])?\s*(\d{1,15})/i,/\bNF\s*[Nº°#.: -]*([0-9]{2,15})\b/i]);if(m)o.number=m[1];
@@ -2656,6 +2724,7 @@ ccgeCRDDrop.addEventListener('drop',e=>{e.preventDefault();ccgeCRDCentralLoad(e.
  m=firstMatch(t,[/(?:MEDIÇ[AÃ]O|BOLETIM\s+DE\s+MEDIÇ[AÃ]O)\s*(?:N[º°.]?|[:#-])?\s*([A-Z0-9.\/-]{1,20})/i]);if(m)o.measurement=m[1];
  return o}
  window.ccgeAnalyzeInvoiceFile=async function(file,i){const initial=window.ccgeReadTaskDraft(),id=initial.invoices?.[i]?.id;if(!id)return false;let sug={};try{sug=filenameSuggestions(file?.name||'')||{}}catch(e){console.warn('Leitura do nome:',e)}let txt='',readStatus='nome do arquivo';try{if(/pdf/i.test(file?.type||'')||/\.pdf$/i.test(file?.name||'')){try{txt=await pdfText(file);if(txt)readStatus='texto do PDF'}catch(e){console.warn('Extração textual indisponível',e)}if(!txt||txt.length<40){try{window.ccgeNotify('Tentando leitura OCR do documento...');txt=await pdfOcr(file);if(txt)readStatus='OCR'}catch(e){console.warn('OCR indisponível',e)}}}const crdRows=txt?ccgeParseCRDRows(txt):[];
+if(crdRows.length||/Controle de Remessa de Documentos/i.test(txt)){ccgeOpenTaskCRD();await ccgeCRDCentralLoad(file);return false;}
 if(/Controle de Remessa de Documentos/i.test(txt)&&!crdRows.length){
  window.ccgeNotify('Documento CRD reconhecido, mas nenhuma medição foi extraída com segurança. Importação bloqueada.');return false;
 }
@@ -2674,7 +2743,7 @@ if(crdRows.length){
  const norm=v=>String(v??'').trim().replace(/^0+(?=\d)/,'');
  const keys=crdRows.map(r=>[norm(r.crd),String(r.measurement||'').trim(),String(r.number||'').trim()].join('|'));
  const already=new Set();
- for(const task of state.tasks||[])for(const invoice of task.invoices||[]){
+ for(const task of window.ccgeCRDApp.snapshot().tasks||[])for(const invoice of task.invoices||[]){
   if(!invoice._crdNumber)continue;
   already.add([norm(invoice._crdNumber),String(invoice.measurement||'').trim(),String(invoice.number||'').trim()].join('|'));
  }
@@ -2703,7 +2772,7 @@ const keyOf=x=>[String(x._crdNumber||x.crd||'').replace(/^0+/,''),String(x.measu
 const existing=new Set((t.invoices||[]).filter(x=>x.id!==id&&x._crdNumber).map(keyOf));
 const unique=crdRows.filter(x=>!existing.has(keyOf(x)));
 if(unique.length!==crdRows.length){window.ccgeNotify('CRD já contém medições importadas nesta tarefa. Importação bloqueada para evitar duplicação.');return false}
-const group='crd_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7);const rows=crdRows.map((r,n)=>({id:n===0?id:ccgeNewInvoiceId(),competence:r.competence||'',measurement:r.measurement||'',issueDate:r.issueDate||'',supplier:r.supplier||'',number:r.number||'',description:r.description||'',amount:Number(r.amount||0),dueDate:r.dueDate||'',situation:base.situation||'',attachment:n===0?(base.attachment||null):null,_sourceDocumentGroup:group,_sourceDocumentName:file?.name||'',_crdNumber:r.crd||''}));t.invoices.splice(j,1,...rows);document.getElementById('taskModal').dataset.temp=JSON.stringify(t);window.ccgeRenderInvoices(t);window.ccgeNotify(`CRD reconhecido: ${rows.length} lançamentos criados. Confira antes de salvar.`);return {mode:'crd',count:rows.length,group,id}}if(txt&&!crdRows.length){try{sug={...sug,...contentSuggestions(txt)}}catch(e){console.warn('Interpretação do texto:',e)}}}catch(e){console.error('Análise do documento falhou; importação bloqueada:',e);window.ccgeNotify('Falha ao interpretar o documento. Nenhum anexo será enviado.');return false}try{const t=window.ccgeReadTaskDraft(),j=(t.invoices||[]).findIndex(x=>x.id===id),x=t.invoices?.[j];if(!x)return false;const changed=[];for(const k of ['supplier','number','measurement','competence','issueDate','dueDate','amount']){if((x[k]===undefined||x[k]===null||x[k]===''||x[k]===0)&&sug[k]!==undefined&&sug[k]!==null&&sug[k]!==''){x[k]=sug[k];changed.push(k)}}if(crdRows.length===1){x._crdNumber=crdRows[0].crd;x._sourceDocumentName=file?.name||'';if(crdRows[0].description)x.description=crdRows[0].description}
+const group='crd_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7);const rows=crdRows.map((r,n)=>({id:n===0?id:ccgeNewInvoiceId(),competence:r.competence||'',measurement:r.measurement||'',issueDate:r.issueDate||'',supplier:r.supplier||'',supplierTaxId:r.cnpj||'',documentType:r.type||'',_sourceRowKey:ccgeCRDLegacyKey(r),_sourceIdentityKey:ccgeCRDIdentityKey(r),_originalDescription:r.description||'',auditHistory:[{action:'import-task-draft',userId:window.ccgeAuditActor||null,at:new Date().toISOString(),originalDescription:r.description||'',selectedTaskId:t.id}],number:r.number||'',description:r.description||'',amount:Number(r.amount||0),dueDate:r.dueDate||'',situation:base.situation||'',attachment:n===0?(base.attachment||null):null,_sourceDocumentGroup:group,_sourceDocumentName:file?.name||'',_crdNumber:r.crd||''}));t.invoices.splice(j,1,...rows);document.getElementById('taskModal').dataset.temp=JSON.stringify(t);window.ccgeRenderInvoices(t);window.ccgeNotify(`CRD reconhecido: ${rows.length} lançamentos criados. Confira antes de salvar.`);return {mode:'crd',count:rows.length,group,id}}if(txt&&!crdRows.length){try{sug={...sug,...contentSuggestions(txt)}}catch(e){console.warn('Interpretação do texto:',e)}}}catch(e){console.error('Análise do documento falhou; importação bloqueada:',e);window.ccgeNotify('Falha ao interpretar o documento. Nenhum anexo será enviado.');return false}try{const t=window.ccgeReadTaskDraft(),j=(t.invoices||[]).findIndex(x=>x.id===id),x=t.invoices?.[j];if(!x)return false;const changed=[];for(const k of ['supplier','number','measurement','competence','issueDate','dueDate','amount']){if((x[k]===undefined||x[k]===null||x[k]===''||x[k]===0)&&sug[k]!==undefined&&sug[k]!==null&&sug[k]!==''){x[k]=sug[k];changed.push(k)}}if(crdRows.length===1){x.supplierTaxId=crdRows[0].cnpj||'';x.documentType=crdRows[0].type||'';x._sourceRowKey=ccgeCRDLegacyKey(crdRows[0]);x._sourceIdentityKey=ccgeCRDIdentityKey(crdRows[0]);x._originalDescription=crdRows[0].description||'';x.auditHistory=[...(x.auditHistory||[]),{action:'import-task-draft',userId:window.ccgeAuditActor||null,at:new Date().toISOString(),originalDescription:crdRows[0].description||'',selectedTaskId:t.id}];x._crdNumber=crdRows[0].crd;x._sourceDocumentName=file?.name||'';if(crdRows[0].description)x.description=crdRows[0].description}
 document.getElementById('taskModal').dataset.temp=JSON.stringify(t);window.ccgeRenderInvoices(t);if(changed.length)window.ccgeNotify(`Leitura por ${readStatus}: ${changed.length} campo(s) preenchido(s). Confira antes de salvar.`);else if(txt)window.ccgeNotify('Documento lido, mas nenhum campo foi reconhecido com segurança.');else window.ccgeNotify('Documento anexado; leitura automática indisponível.');return {mode:'single',count:1,id}}catch(e){console.error('Aplicação da leitura automática:',e);window.ccgeNotify('Documento anexado; não foi possível preencher os campos automaticamente.');return false}}
  window.ccgePropagateInvoiceAttachment=function(sourceId){const t=window.ccgeReadTaskDraft(),src=(t.invoices||[]).find(x=>x.id===sourceId);if(!src?.attachment||!src?._sourceDocumentGroup)return;for(const x of t.invoices||[]){if(x.id!==sourceId&&x._sourceDocumentGroup===src._sourceDocumentGroup)x.attachment={...src.attachment}}document.getElementById('taskModal').dataset.temp=JSON.stringify(t);window.ccgeRenderInvoices(t)}
 
@@ -2818,3 +2887,6 @@ window.attachInvoiceFile=async function(i,explicitFile){
 
 
 </body></html>
+
+
+<style>#crdCentralModal{z-index:150}.crd-review-table{min-width:0!important;width:100%!important;table-layout:fixed;font-size:12px}.crd-review-table th,.crd-review-table td{padding:6px;overflow-wrap:anywhere}.crd-review-table th:first-child{width:65px}#crdCentralModal .dialog{width:96vw!important;max-width:1500px!important}.crd-review-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-top:12px}.crd-review-layout iframe{width:100%;height:60vh;border:1px solid #dfe7f1}.crd-review-layout #crdCentralReview{max-height:60vh;overflow:auto;min-width:0}.crd-review-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px;min-width:0;border:1px solid #dfe7f1;border-radius:10px}.crd-review-row>b{grid-column:2}.crd-review-row label{display:grid;gap:3px;min-width:0;font-size:12px}.crd-review-row input{min-width:0;width:100%;padding:6px}.crd-review-row input[type=checkbox]{width:20px}@media(max-width:800px){.crd-review-layout{grid-template-columns:1fr}.crd-review-layout iframe{height:35vh}}</style>
